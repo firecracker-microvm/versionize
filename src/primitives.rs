@@ -264,6 +264,38 @@ where
     }
 }
 
+// Manual implementation for tuple of 2 elems.
+impl<T: Versionize, U: Versionize> Versionize for (T, U) {
+    #[inline]
+    fn serialize<W: std::io::Write>(
+        &self,
+        writer: &mut W,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<()> {
+        self.0.serialize(writer, version_map, app_version)?;
+        self.1.serialize(writer, version_map, app_version)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn deserialize<R: std::io::Read>(
+        reader: &mut R,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<Self> {
+        Ok((
+            T::deserialize(reader, version_map, app_version)?,
+            U::deserialize(reader, version_map, app_version)?,
+        ))
+    }
+
+    // Not used yet.
+    fn version() -> u16 {
+        1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(non_upper_case_globals)]
@@ -324,6 +356,21 @@ mod tests {
     primitive_int_test!(f32, test_ser_de_f32);
     primitive_int_test!(f64, test_ser_de_f64);
     primitive_int_test!(char, test_ser_de_char);
+
+    #[test]
+    fn test_ser_de_u32_tuple() {
+        let vm = VersionMap::new();
+        let mut snapshot_mem = vec![0u8; 64];
+
+        let store: (u32, u32) = (std::u32::MIN, std::u32::MAX);
+        store
+            .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)
+            .unwrap();
+        let restore =
+            <(u32, u32) as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1).unwrap();
+
+        assert_eq!(store, restore);
+    }
 
     #[repr(u32)]
     #[derive(Debug, Versionize, PartialEq, Clone)]
