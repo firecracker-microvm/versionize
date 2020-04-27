@@ -636,11 +636,13 @@ fn test_versionize_struct_with_array() {
     struct TestStruct {
         a: [u32; SIZE],
         b: [u8; dummy_mod::SIZE],
+        c: Option<[i16; SIZE]>,
     }
 
     let test_struct = TestStruct {
         a: [1; SIZE],
         b: [2; dummy_mod::SIZE],
+        c: Some([3; SIZE]),
     };
 
     let mut mem = vec![0; 4096];

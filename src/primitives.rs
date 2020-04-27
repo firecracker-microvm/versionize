@@ -62,6 +62,66 @@ impl_versionize!(f64);
 impl_versionize!(char);
 impl_versionize!(String);
 
+macro_rules! impl_versionize_array_with_size {
+    ($ty:literal) => {
+        impl<T> Versionize for [T; $ty]
+        where
+            T: Copy + Default + Versionize,
+        {
+            #[inline]
+            fn serialize<W: std::io::Write>(
+                &self,
+                writer: &mut W,
+                version_map: &VersionMap,
+                app_version: u16,
+            ) -> VersionizeResult<()> {
+                for element in self {
+                    element.serialize(writer, version_map, app_version)?;
+                }
+
+                Ok(())
+            }
+
+            #[inline]
+            fn deserialize<R: std::io::Read>(
+                reader: &mut R,
+                version_map: &VersionMap,
+                app_version: u16,
+            ) -> VersionizeResult<Self> {
+                let mut array = [T::default(); $ty];
+                for i in 0..$ty {
+                    array[i] = T::deserialize(reader, version_map, app_version)?;
+                }
+                Ok(array)
+            }
+
+            // Not used yet.
+            fn version() -> u16 {
+                1
+            }
+        }
+    };
+}
+
+// Conventionally, traits are available for primitive arrays only up to size 32
+// until the const generics feature is implemented.
+// [https://doc.rust-lang.org/std/primitive.array.html]
+// [https://github.com/rust-lang/rust/issues/44580]
+macro_rules! impl_versionize_arrays {
+    ($($N:literal)+) => {
+        $(
+            impl_versionize_array_with_size!($N);
+        )+
+    }
+}
+
+impl_versionize_arrays! {
+    0  1  2  3  4  5  6  7  8  9
+   10 11 12 13 14 15 16 17 18 19
+   20 21 22 23 24 25 26 27 28 29
+   30 31 32
+}
+
 impl<T> Versionize for Box<T>
 where
     T: Versionize,
