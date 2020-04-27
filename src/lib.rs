@@ -42,6 +42,18 @@ pub enum VersionizeError {
     Semantic(String),
 }
 
+impl std::fmt::Display for VersionizeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        use VersionizeError::*;
+        match self {
+            Io(e) => write!(f, "An IO error occured: {}", e),
+            Serialize(e) => write!(f, "A serialization error occured: {}", e),
+            Deserialize(e) => write!(f, "A deserialization error occured: {}", e),
+            Semantic(e) => write!(f, "A user generated semantic error occured: {}", e),
+        }
+    }
+}
+
 /// Versioned serialization/deserialization result.
 pub type VersionizeResult<T> = std::result::Result<T, VersionizeError>;
 
@@ -75,4 +87,18 @@ pub trait Versionize {
 
     /// Returns latest `Self` version number.
     fn version() -> u16;
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_error_debug_display() {
+        // Validates Debug and Display are implemented.
+        use VersionizeError::*;
+        let str = String::from("test");
+        format!("{:?}{}", Io(0), Io(0));
+        format!("{:?}{}", Serialize(str.clone()), Serialize(str.clone()));
+        format!("{:?}{}", Deserialize(str.clone()), Deserialize(str.clone()));
+        format!("{:?}{}", Semantic(str.clone()), Semantic(str.clone()));
+    }
 }
