@@ -116,6 +116,6 @@ mod tests {
         format!("{:?}{}", Io(0), Io(0));
         format!("{:?}{}", Serialize(str.clone()), Serialize(str.clone()));
         format!("{:?}{}", Deserialize(str.clone()), Deserialize(str.clone()));
-        format!("{:?}{}", Semantic(str.clone()), Semantic(str.clone()));
+        format!("{:?}{}", Semantic(str.clone()), Semantic(str));
     }
 }
