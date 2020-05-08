@@ -21,7 +21,7 @@ extern crate vm_memory;
 extern crate vmm_sys_util;
 
 pub mod crc;
-mod primitives;
+pub mod primitives;
 pub mod version_map;
 
 use std::any::TypeId;
@@ -40,16 +40,33 @@ pub enum VersionizeError {
     Deserialize(String),
     /// A user generated semantic error.
     Semantic(String),
+    /// String length exceeded.
+    StringLength(usize),
+    /// Vector length exceeded.
+    VecLength(usize),
 }
 
 impl std::fmt::Display for VersionizeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
         use VersionizeError::*;
+
         match self {
             Io(e) => write!(f, "An IO error occured: {}", e),
             Serialize(e) => write!(f, "A serialization error occured: {}", e),
             Deserialize(e) => write!(f, "A deserialization error occured: {}", e),
             Semantic(e) => write!(f, "A user generated semantic error occured: {}", e),
+            StringLength(bad_len) => write!(
+                f,
+                "String length exceeded {} > {} bytes",
+                bad_len,
+                primitives::MAX_STRING_LEN
+            ),
+            VecLength(bad_len) => write!(
+                f,
+                "Vec length exceeded {} > {} bytes",
+                bad_len,
+                primitives::MAX_VEC_LEN
+            ),
         }
     }
 }
