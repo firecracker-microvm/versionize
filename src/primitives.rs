@@ -1,9 +1,15 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
+//! Serialization support for primitive data types.
 #![allow(clippy::float_cmp)]
 
 use self::super::{VersionMap, Versionize, VersionizeError, VersionizeResult};
 use vmm_sys_util::fam::{FamStruct, FamStructWrapper};
+
+/// Maximum string len in bytes (16KB).
+pub const MAX_STRING_LEN: usize = 16384;
+/// Maximum vec len in bytes (10MB).
+pub const MAX_VEC_LEN: usize = 10_485_760;
 
 /// Implements the Versionize trait for primitive types that also implement
 /// serde's Serialize/Deserialize: use serde_bincode as a backend for
@@ -60,7 +66,53 @@ impl_versionize!(u64);
 impl_versionize!(f32);
 impl_versionize!(f64);
 impl_versionize!(char);
-impl_versionize!(String);
+
+impl Versionize for String {
+    #[inline]
+    fn serialize<W: std::io::Write>(
+        &self,
+        writer: &mut W,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<()> {
+        // It is better to fail early at serialization time.
+        if self.len() > MAX_STRING_LEN {
+            return Err(VersionizeError::StringLength(self.len()));
+        }
+
+        self.len().serialize(writer, version_map, app_version)?;
+        writer
+            .write_all(self.as_bytes())
+            .map_err(|e| VersionizeError::Io(e.raw_os_error().unwrap_or(0)))?;
+        Ok(())
+    }
+
+    #[inline]
+    fn deserialize<R: std::io::Read>(
+        mut reader: &mut R,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<Self> {
+        let len = usize::deserialize(&mut reader, version_map, app_version)?;
+        // Even if we fail in serialize, we still need to enforce this on the hot path
+        // in case the len is corrupted.
+        if len > MAX_STRING_LEN {
+            return Err(VersionizeError::StringLength(len));
+        }
+
+        let mut v = vec![0u8; len];
+        reader
+            .read_exact(v.as_mut_slice())
+            .map_err(|e| VersionizeError::Io(e.raw_os_error().unwrap_or(0)))?;
+        Ok(String::from_utf8(v)
+            .map_err(|err| VersionizeError::Deserialize(format!("Utf8 error: {:?}", err)))?)
+    }
+
+    // Not used yet.
+    fn version() -> u16 {
+        1
+    }
+}
 
 macro_rules! impl_versionize_array_with_size {
     ($ty:literal) => {
@@ -239,15 +291,17 @@ where
         version_map: &VersionMap,
         app_version: u16,
     ) -> VersionizeResult<()> {
+        let bytes_len = self.len() * std::mem::size_of::<T>();
+        if bytes_len > MAX_VEC_LEN {
+            return Err(VersionizeError::VecLength(bytes_len));
+        }
         // Serialize in the same fashion as bincode:
         // Write len.
         bincode::serialize_into(&mut writer, &self.len())
             .map_err(|ref err| VersionizeError::Serialize(format!("{:?}", err)))?;
-        // Walk the vec and write each elemenet.
+        // Walk the vec and write each element.
         for element in self {
-            element
-                .serialize(writer, version_map, app_version)
-                .map_err(|ref err| VersionizeError::Serialize(format!("{:?}", err)))?;
+            element.serialize(writer, version_map, app_version)?;
         }
         Ok(())
     }
@@ -259,8 +313,14 @@ where
         app_version: u16,
     ) -> VersionizeResult<Self> {
         let mut v = Vec::new();
-        let len: u64 = bincode::deserialize_from(&mut reader)
+        let len: usize = bincode::deserialize_from(&mut reader)
             .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+
+        let bytes_len = len * std::mem::size_of::<T>();
+        if bytes_len > MAX_VEC_LEN {
+            return Err(VersionizeError::VecLength(bytes_len));
+        }
+
         for _ in 0..len {
             let element: T = T::deserialize(reader, version_map, app_version)
                 .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
@@ -934,5 +994,34 @@ mod tests {
             restored_state.as_fam_struct_ref().padding
         );
         assert_eq!(original_values, restored_values);
+    }
+
+    #[test]
+    fn test_vec_limit() {
+        // We need extra 8 bytes for vector len.
+        let mut snapshot_mem = vec![0u8; MAX_VEC_LEN + 8];
+        let err = vec![123u8; MAX_VEC_LEN + 1]
+            .serialize(&mut snapshot_mem.as_mut_slice(), &VersionMap::new(), 1)
+            .unwrap_err();
+        assert_eq!(err, VersionizeError::VecLength(MAX_VEC_LEN + 1));
+        assert_eq!(
+            format!("{}", err),
+            "Vec length exceeded 10485761 > 10485760 bytes"
+        );
+    }
+
+    #[test]
+    fn test_string_limit() {
+        // We need extra 8 bytes for string len.
+        let mut snapshot_mem = vec![0u8; MAX_STRING_LEN + 8];
+        let err = String::from_utf8(vec![123u8; MAX_STRING_LEN + 1])
+            .unwrap()
+            .serialize(&mut snapshot_mem.as_mut_slice(), &VersionMap::new(), 1)
+            .unwrap_err();
+        assert_eq!(err, VersionizeError::StringLength(MAX_STRING_LEN + 1));
+        assert_eq!(
+            format!("{}", err),
+            "String length exceeded 16385 > 16384 bytes"
+        );
     }
 }
