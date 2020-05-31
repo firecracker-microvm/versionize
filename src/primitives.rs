@@ -3,6 +3,8 @@
 //! Serialization support for primitive data types.
 #![allow(clippy::float_cmp)]
 
+use std::collections::VecDeque;
+
 use self::super::{VersionMap, Versionize, VersionizeError, VersionizeResult};
 use vmm_sys_util::fam::{FamStruct, FamStructWrapper};
 
@@ -335,6 +337,53 @@ where
     }
 }
 
+impl<T> Versionize for VecDeque<T>
+where
+    T: Versionize,
+{
+    #[inline]
+    fn serialize<W: std::io::Write>(
+        &self,
+        mut writer: &mut W,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<()> {
+        // Serialize in the same fashion as bincode:
+        // Write len.
+        bincode::serialize_into(&mut writer, &self.len())
+            .map_err(|ref err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        // Walk the vecdeque and write each elemenet.
+        for element in self {
+            element
+                .serialize(writer, version_map, app_version)
+                .map_err(|ref err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn deserialize<R: std::io::Read>(
+        mut reader: &mut R,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<Self> {
+        let mut v = VecDeque::new();
+        let len: u64 = bincode::deserialize_from(&mut reader)
+            .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+        for _ in 0..len {
+            let element: T = T::deserialize(reader, version_map, app_version)
+                .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+            v.push_back(element);
+        }
+        Ok(v)
+    }
+
+    // Not used yet.
+    fn version() -> u16 {
+        1
+    }
+}
+
 // Implement versioning for FAM structures by using the FamStructWrapper interface.
 impl<T: Default + FamStruct + Versionize> Versionize for FamStructWrapper<T>
 where
@@ -618,6 +667,26 @@ mod tests {
             .unwrap();
         let restore =
             <Vec<String> as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1).unwrap();
+
+        assert_eq!(store, restore);
+    }
+
+    #[test]
+    fn test_ser_de_vecdeque() {
+        let vm = VersionMap::new();
+        let mut snapshot_mem = vec![0u8; 64];
+
+        let mut store = VecDeque::new();
+        store.push_back("test 1".to_owned());
+        store.push_back("test 2".to_owned());
+        store.push_back("test 3".to_owned());
+
+        store
+            .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)
+            .unwrap();
+        let restore =
+            <VecDeque<String> as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1)
+                .unwrap();
 
         assert_eq!(store, restore);
     }
