@@ -8,8 +8,8 @@ use vmm_sys_util::fam::{FamStruct, FamStructWrapper};
 
 /// Maximum string len in bytes (16KB).
 pub const MAX_STRING_LEN: usize = 16384;
-/// Maximum vec len in bytes (10MB).
-pub const MAX_VEC_LEN: usize = 10_485_760;
+/// Maximum vec size in bytes (10MB).
+pub const MAX_VEC_SIZE: usize = 10_485_760;
 
 /// Implements the Versionize trait for primitive types that also implement
 /// serde's Serialize/Deserialize: use serde_bincode as a backend for
@@ -291,9 +291,8 @@ where
         version_map: &VersionMap,
         app_version: u16,
     ) -> VersionizeResult<()> {
-        let bytes_len = self.len() * std::mem::size_of::<T>();
-        if bytes_len > MAX_VEC_LEN {
-            return Err(VersionizeError::VecLength(bytes_len));
+        if self.len() > MAX_VEC_SIZE / std::mem::size_of::<T>() {
+            return Err(VersionizeError::VecLength(self.len()));
         }
         // Serialize in the same fashion as bincode:
         // Write len.
@@ -316,9 +315,8 @@ where
         let len: usize = bincode::deserialize_from(&mut reader)
             .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
 
-        let bytes_len = len * std::mem::size_of::<T>();
-        if bytes_len > MAX_VEC_LEN {
-            return Err(VersionizeError::VecLength(bytes_len));
+        if len > MAX_VEC_SIZE / std::mem::size_of::<T>() {
+            return Err(VersionizeError::VecLength(len));
         }
 
         for _ in 0..len {
@@ -704,14 +702,14 @@ mod tests {
     #[test]
     fn test_vec_limit() {
         // We need extra 8 bytes for vector len.
-        let mut snapshot_mem = vec![0u8; MAX_VEC_LEN + 8];
-        let err = vec![123u8; MAX_VEC_LEN + 1]
+        let mut snapshot_mem = vec![0u8; MAX_VEC_SIZE + 8];
+        let err = vec![123u8; MAX_VEC_SIZE + 1]
             .serialize(&mut snapshot_mem.as_mut_slice(), &VersionMap::new(), 1)
             .unwrap_err();
-        assert_eq!(err, VersionizeError::VecLength(MAX_VEC_LEN + 1));
+        assert_eq!(err, VersionizeError::VecLength(MAX_VEC_SIZE + 1));
         assert_eq!(
             format!("{}", err),
-            "Vec length exceeded 10485761 > 10485760 bytes"
+            "Vec of length 10485761 exceeded maximum size of 10485760 bytes"
         );
     }
 
