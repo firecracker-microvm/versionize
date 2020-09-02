@@ -46,8 +46,13 @@ impl VersionMap {
     }
 
     /// Returns the version of `type_id` corresponding to the specified `root_version`.
+    /// If `root_version` is out of range returns the version of `type_id` at latest version.
     pub fn get_type_version(&self, root_version: u16, type_id: TypeId) -> u16 {
-        let version_space = self.versions.split_at(root_version as usize).0;
+        let version_space = if root_version > self.latest_version() || root_version == 0 {
+            self.versions.as_slice()
+        } else {
+            self.versions.split_at(root_version as usize).0
+        };
 
         for i in (0..version_space.len()).rev() {
             if let Some(version) = version_space[i].get(&type_id) {
@@ -152,6 +157,18 @@ mod tests {
     #[test]
     fn test_unset_type() {
         let vm = VersionMap::new();
+        assert_eq!(vm.get_type_version(1, TypeId::of::<MyType>()), BASE_VERSION);
+    }
+
+    #[test]
+    fn test_invalid_root_version() {
+        let mut vm = VersionMap::new();
+        vm.new_version().set_type_version(TypeId::of::<MyType>(), 2);
+
+        assert_eq!(vm.get_type_version(0, TypeId::of::<MyType>()), 2);
+
+        assert_eq!(vm.latest_version(), 2);
+        assert_eq!(vm.get_type_version(129, TypeId::of::<MyType>()), 2);
         assert_eq!(vm.get_type_version(1, TypeId::of::<MyType>()), BASE_VERSION);
     }
 }
