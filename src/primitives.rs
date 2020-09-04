@@ -454,6 +454,83 @@ mod tests {
     primitive_int_test!(char, test_ser_de_char);
 
     #[test]
+    fn test_corrupted_string_len() {
+        let vm = VersionMap::new();
+        let mut buffer = vec![0u8; 1024];
+
+        let string = String::from("Test string1");
+        string
+            .serialize(&mut buffer.as_mut_slice(), &vm, 1)
+            .unwrap();
+
+        // Test corrupt length field.
+        assert_eq!(
+            <String as Versionize>::deserialize(
+                &mut buffer.as_slice().split_first().unwrap().1,
+                &vm,
+                1
+            )
+            .unwrap_err(),
+            VersionizeError::StringLength(6052837899185946624)
+        );
+
+        // Test incomplete string.
+        assert_eq!(
+            <String as Versionize>::deserialize(&mut buffer.as_slice().split_at(6).0, &vm, 1)
+                .unwrap_err(),
+            VersionizeError::Deserialize(
+                "Io(Custom { kind: UnexpectedEof, error: \"failed to fill whole buffer\" })"
+                    .to_owned()
+            )
+        );
+
+        // Test NULL string len.
+        buffer[0] = 0;
+        assert_eq!(
+            <String as Versionize>::deserialize(&mut buffer.as_slice(), &vm, 1).unwrap(),
+            String::new()
+        );
+    }
+
+    #[test]
+    fn test_corrupted_vec_len() {
+        let vm = VersionMap::new();
+        let mut buffer = vec![0u8; 1024];
+
+        let mut string = String::from("Test string1");
+        let vec = unsafe { string.as_mut_vec() };
+        vec.serialize(&mut buffer.as_mut_slice(), &vm, 1).unwrap();
+
+        // Test corrupt length field.
+        assert_eq!(
+            <Vec<u8> as Versionize>::deserialize(
+                &mut buffer.as_slice().split_first().unwrap().1,
+                &vm,
+                1
+            )
+            .unwrap_err(),
+            VersionizeError::VecLength(6052837899185946624)
+        );
+
+        // Test incomplete Vec.
+        assert_eq!(
+            <Vec<u8> as Versionize>::deserialize(&mut buffer.as_slice().split_at(6).0, &vm, 1)
+                .unwrap_err(),
+            VersionizeError::Deserialize(
+                "Io(Custom { kind: UnexpectedEof, error: \"failed to fill whole buffer\" })"
+                    .to_owned()
+            )
+        );
+
+        // Test NULL Vec len.
+        buffer[0] = 0;
+        assert_eq!(
+            <Vec<u8> as Versionize>::deserialize(&mut buffer.as_slice(), &vm, 1).unwrap(),
+            Vec::new()
+        );
+    }
+
+    #[test]
     fn test_ser_de_u32_tuple() {
         let vm = VersionMap::new();
         let mut snapshot_mem = vec![0u8; 64];
