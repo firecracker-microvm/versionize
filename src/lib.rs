@@ -65,9 +65,9 @@ impl std::fmt::Display for VersionizeError {
             ),
             VecLength(bad_len) => write!(
                 f,
-                "Vec length exceeded {} > {} bytes",
+                "Vec of length {} exceeded maximum size of {} bytes",
                 bad_len,
-                primitives::MAX_VEC_LEN
+                primitives::MAX_VEC_SIZE
             ),
             VersionMapNotUpdated => write!(f, "VersionMap not updated with latest versions"),
         }
