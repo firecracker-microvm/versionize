@@ -1,6 +1,6 @@
 [package]
 name = "versionize"
-version = "0.1.2"
+version = "0.1.3"
 license = "Apache-2.0"
 authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
 description = "A version tolerant serialization/deserialization framework."

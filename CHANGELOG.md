@@ -1,3 +1,7 @@
+# v0.1.3
+
+- Added extra validations in VersionMap::get_type_version().
+
 # v0.1.2
 
 - Improved edge cases handling for Vec serialization and deserialization.
