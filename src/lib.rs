@@ -8,9 +8,20 @@
 //! need to implement.
 //!
 //! `VersionMap` exposes an API that maps the individual structure versions to
-//! a root version (see above: the data version for example). This mapping is required
-//! both when serializing or deserializing structures as we need to know which version of structure
-//! to serialize for a given target **data version
+//! a root version. This mapping is required both when serializing or deserializing structures as
+//! it needs to know which version of structure to serialize for a given target data version.
+//!
+//! The Versionize proc macro supports structures and enums.
+//! Supported primitives: u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, char, f32, f64,
+//! String, Vec<T>, Arrays up to 32 elements, Box<T>, Wrapping<T>, Option<T>, FamStructWrapper<T>,
+//! and (T, U).
+//!
+//! Known issues and limitations:
+//! - Union serialization is not supported via the `Versionize` proc macro.
+//! - Implementing Versionize for non-repr(C) unions can result in undefined behaviour
+//! and MUST be avoided.
+//! - Versionize trait implementations for repr(C) unions must be backed by extensive testing.
+//! - Semantic serialization and deserialization is available only for structures.
 //!
 extern crate bincode;
 extern crate crc64;
