@@ -14,7 +14,7 @@
 //! The Versionize proc macro supports structures and enums.
 //! Supported primitives: u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, char, f32, f64,
 //! String, Vec<T>, Arrays up to 32 elements, Box<T>, Wrapping<T>, Option<T>, FamStructWrapper<T>,
-//! and (T, U).
+//! VecDequeue<T>, HashMap<K, V>, HashSet<T> and (T, U).
 //!
 //! Known issues and limitations:
 //! - Union serialization is not supported via the `Versionize` proc macro.
@@ -54,6 +54,10 @@ pub enum VersionizeError {
     StringLength(usize),
     /// Vector length exceeded.
     VecLength(usize),
+    /// HashMap length exceeded.
+    HashMapLength(usize),
+    /// HashSet length exceeded.
+    HashSetLength(usize),
 }
 
 impl std::fmt::Display for VersionizeError {
@@ -76,6 +80,18 @@ impl std::fmt::Display for VersionizeError {
                 "Vec of length {} exceeded maximum size of {} bytes",
                 bad_len,
                 primitives::MAX_VEC_SIZE
+            ),
+            HashMapLength(bad_len) => write!(
+                f,
+                "HashMap of length {} exceeded maximum size of {} bytes",
+                bad_len,
+                primitives::MAX_HASH_MAP_SIZE
+            ),
+            HashSetLength(bad_len) => write!(
+                f,
+                "HashSet of length {} exceeded maximum size of {} bytes",
+                bad_len,
+                primitives::MAX_HASH_SET_SIZE
             ),
         }
     }

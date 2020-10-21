@@ -1,3 +1,7 @@
+# v0.1.5
+
+- Add versionize proc macro support for HashMap, HashSet and VecDequeue.
+
 # v0.1.4
 
 - Removed Versionize proc macro support for unions. Serializing unions can lead to undefined behaviour especially when no

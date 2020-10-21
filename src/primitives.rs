@@ -3,6 +3,9 @@
 //! Serialization support for primitive data types.
 #![allow(clippy::float_cmp)]
 
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::Hash;
+
 use self::super::{VersionMap, Versionize, VersionizeError, VersionizeResult};
 use vmm_sys_util::fam::{FamStruct, FamStructWrapper};
 
@@ -10,6 +13,10 @@ use vmm_sys_util::fam::{FamStruct, FamStructWrapper};
 pub const MAX_STRING_LEN: usize = 16384;
 /// Maximum vec size in bytes (10MB).
 pub const MAX_VEC_SIZE: usize = 10_485_760;
+/// Maximum hashmap len in bytes (20MB).
+pub const MAX_HASH_MAP_SIZE: usize = 20_971_520;
+/// Maximum hashset len in bytes (10MB).
+pub const MAX_HASH_SET_SIZE: usize = 10_485_760;
 
 /// Implements the Versionize trait for primitive types that also implement
 /// serde's Serialize/Deserialize: use serde_bincode as a backend for
@@ -325,6 +332,168 @@ where
             v.push(element);
         }
         Ok(v)
+    }
+
+    // Not used yet.
+    fn version() -> u16 {
+        1
+    }
+}
+
+impl<T> Versionize for VecDeque<T>
+where
+    T: Versionize,
+{
+    #[inline]
+    fn serialize<W: std::io::Write>(
+        &self,
+        mut writer: &mut W,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<()> {
+        if self.len() > MAX_VEC_SIZE / std::mem::size_of::<T>() {
+            return Err(VersionizeError::VecLength(self.len()));
+        }
+
+        // Serialize in the same fashion as bincode:
+        // Write len.
+        bincode::serialize_into(&mut writer, &self.len())
+            .map_err(|ref err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        // Walk the vec and write each element.
+        for element in self {
+            element.serialize(writer, version_map, app_version)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn deserialize<R: std::io::Read>(
+        mut reader: &mut R,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<Self> {
+        let mut v = VecDeque::new();
+        let len: usize = bincode::deserialize_from(&mut reader)
+            .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+
+        if len > MAX_VEC_SIZE / std::mem::size_of::<T>() {
+            return Err(VersionizeError::VecLength(len));
+        }
+
+        for _ in 0..len {
+            let element: T = T::deserialize(reader, version_map, app_version)
+                .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+            v.push_back(element);
+        }
+        Ok(v)
+    }
+
+    // Not used yet.
+    fn version() -> u16 {
+        1
+    }
+}
+
+impl<K, V> Versionize for HashMap<K, V>
+where
+    K: Versionize + Eq + Hash + Clone,
+    V: Versionize + Clone,
+{
+    #[inline]
+    fn serialize<W: std::io::Write>(
+        &self,
+        mut writer: &mut W,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<()> {
+        if self.len() > MAX_HASH_MAP_SIZE / (std::mem::size_of::<K>() + std::mem::size_of::<V>()) {
+            return Err(VersionizeError::HashMapLength(self.len()));
+        }
+
+        // Write len
+        bincode::serialize_into(&mut writer, &self.len())
+            .map_err(|ref err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        // Walk the hash map and write each element.
+        for (k, v) in self.iter() {
+            (k.clone(), v.clone()).serialize(writer, version_map, app_version)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn deserialize<R: std::io::Read>(
+        mut reader: &mut R,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<Self> {
+        let mut map = HashMap::new();
+        let len: usize = bincode::deserialize_from(&mut reader)
+            .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+
+        if len > MAX_HASH_MAP_SIZE / (std::mem::size_of::<K>() + std::mem::size_of::<V>()) {
+            return Err(VersionizeError::HashMapLength(len));
+        }
+
+        for _ in 0..len {
+            let element: (K, V) = <(K, V)>::deserialize(reader, version_map, app_version)
+                .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+            map.insert(element.0, element.1);
+        }
+        Ok(map)
+    }
+
+    // Not used yet.
+    fn version() -> u16 {
+        1
+    }
+}
+
+impl<T> Versionize for HashSet<T>
+where
+    T: Versionize + Hash + Eq,
+{
+    #[inline]
+    fn serialize<W: std::io::Write>(
+        &self,
+        mut writer: &mut W,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<()> {
+        if self.len() > MAX_HASH_SET_SIZE / std::mem::size_of::<T>() {
+            return Err(VersionizeError::HashSetLength(self.len()));
+        }
+
+        // Serialize in the same fashion as bincode:
+        // Write len.
+        bincode::serialize_into(&mut writer, &self.len())
+            .map_err(|ref err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        // Walk the vec and write each element.
+        for element in self {
+            element.serialize(writer, version_map, app_version)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn deserialize<R: std::io::Read>(
+        mut reader: &mut R,
+        version_map: &VersionMap,
+        app_version: u16,
+    ) -> VersionizeResult<Self> {
+        let mut set = HashSet::new();
+        let len: usize = bincode::deserialize_from(&mut reader)
+            .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+
+        if len > MAX_HASH_SET_SIZE / std::mem::size_of::<T>() {
+            return Err(VersionizeError::HashSetLength(len));
+        }
+
+        for _ in 0..len {
+            let element: T = T::deserialize(reader, version_map, app_version)
+                .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+            set.insert(element);
+        }
+        Ok(set)
     }
 
     // Not used yet.
@@ -698,6 +867,68 @@ mod tests {
     }
 
     #[test]
+    fn test_ser_de_vec_deque() {
+        let vm = VersionMap::new();
+        let mut snapshot_mem = vec![0u8; 64];
+
+        let mut store = VecDeque::new();
+        store.push_back("test 1".to_owned());
+        store.push_back("test 2".to_owned());
+        store.push_back("test 3".to_owned());
+
+        store
+            .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)
+            .unwrap();
+        let restore =
+            <Vec<String> as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1).unwrap();
+
+        assert_eq!(store, restore);
+    }
+
+    #[test]
+    fn test_ser_de_hash_map() {
+        let vm = VersionMap::new();
+        let mut snapshot_mem = vec![0u8; 128];
+
+        let mut store = HashMap::new();
+        store.insert(1, "test 1".to_owned());
+        store.insert(2, "test 2".to_owned());
+        store.insert(3, "test 3".to_owned());
+
+        store
+            .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)
+            .unwrap();
+        let restore = <HashMap<usize, String> as Versionize>::deserialize(
+            &mut snapshot_mem.as_slice(),
+            &vm,
+            1,
+        )
+        .unwrap();
+
+        assert_eq!(store, restore);
+    }
+
+    #[test]
+    fn test_ser_de_hash_set() {
+        let vm = VersionMap::new();
+        let mut snapshot_mem = vec![0u8; 64];
+
+        let mut store = HashSet::new();
+        store.insert("test 1".to_owned());
+        store.insert("test 2".to_owned());
+        store.insert("test 3".to_owned());
+
+        store
+            .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)
+            .unwrap();
+        let restore =
+            <HashSet<String> as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1)
+                .unwrap();
+
+        assert_eq!(store, restore);
+    }
+
+    #[test]
     fn test_ser_de_option() {
         let vm = VersionMap::new();
         let mut snapshot_mem = vec![0u8; 64];
@@ -787,6 +1018,62 @@ mod tests {
         assert_eq!(
             format!("{}", err),
             "Vec of length 10485761 exceeded maximum size of 10485760 bytes"
+        );
+    }
+
+    #[test]
+    fn test_vec_deque_limit() {
+        // We need extra 8 bytes for vector len.
+        let mut snapshot_mem = vec![0u8; MAX_VEC_SIZE + 8];
+        let err = VecDeque::from(vec![123u8; MAX_VEC_SIZE + 1])
+            .serialize(&mut snapshot_mem.as_mut_slice(), &VersionMap::new(), 1)
+            .unwrap_err();
+        assert_eq!(err, VersionizeError::VecLength(MAX_VEC_SIZE + 1));
+        assert_eq!(
+            format!("{}", err),
+            "Vec of length 10485761 exceeded maximum size of 10485760 bytes"
+        );
+    }
+
+    #[test]
+    fn test_hash_map_limit() {
+        // We need extra 8 bytes for vector len.
+        let mut snapshot_mem = vec![0u8; MAX_HASH_MAP_SIZE / 16 + 1];
+        let mut err = HashMap::with_capacity(MAX_HASH_MAP_SIZE / 16 + 1);
+        for i in 0..(MAX_HASH_MAP_SIZE / 16 + 1) {
+            err.insert(i, i);
+        }
+        let err = err
+            .serialize(&mut snapshot_mem.as_mut_slice(), &VersionMap::new(), 1)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            VersionizeError::HashMapLength(MAX_HASH_MAP_SIZE / 16 + 1)
+        );
+        assert_eq!(
+            format!("{}", err),
+            "HashMap of length 1310721 exceeded maximum size of 20971520 bytes"
+        );
+    }
+
+    #[test]
+    fn test_hash_set_limit() {
+        // We need extra 8 bytes for vector len.
+        let mut snapshot_mem = vec![0u8; MAX_HASH_SET_SIZE / 8 + 1];
+        let mut err = HashSet::with_capacity(MAX_HASH_SET_SIZE / 8 + 1);
+        for i in 0..(MAX_HASH_SET_SIZE / 8 + 1) {
+            err.insert(i);
+        }
+        let err = err
+            .serialize(&mut snapshot_mem.as_mut_slice(), &VersionMap::new(), 1)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            VersionizeError::HashSetLength(MAX_HASH_SET_SIZE / 8 + 1)
+        );
+        assert_eq!(
+            format!("{}", err),
+            "HashSet of length 1310721 exceeded maximum size of 10485760 bytes"
         );
     }
 
