@@ -1,13 +1,29 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implements readers and writers that compute a CRC64 checksum on the bytes
+//! Implements readers and writers that compute the CRC64 checksum of the bytes
 //! read/written.
 
 use crc64::crc64;
 use std::io::{Read, Write};
 
-/// Computes CRC64 checksums from read bytes.
+/// Computes the CRC64 checksum of the read bytes.
+///
+/// ```
+/// use std::io::Read;
+/// use versionize::crc::CRC64Reader;
+///
+/// let buf = vec![1, 2, 3, 4, 5];
+/// let mut read_buf = Vec::new();
+/// let mut slice = buf.as_slice();
+///
+/// // Create a reader from a slice.
+/// let mut crc_reader = CRC64Reader::new(&mut slice);
+///
+/// let count = crc_reader.read_to_end(&mut read_buf).unwrap();
+/// assert_eq!(crc_reader.checksum(), 0xFB04_60DE_0638_3654);
+/// assert_eq!(read_buf, buf);
+/// ```
 pub struct CRC64Reader<T> {
     reader: T,
     crc64: u64,
@@ -38,7 +54,23 @@ where
     }
 }
 
-/// Computes CRC64 checksums from written bytes.
+/// Computes the CRC64 checksum of the written bytes.
+///
+/// ```
+/// use std::io::Write;
+/// use versionize::crc::CRC64Writer;
+///
+/// let mut buf = vec![0; 16];
+/// let write_buf = vec![123; 16];
+/// let mut slice = buf.as_mut_slice();
+///
+/// // Create a new writer from slice.
+/// let mut crc_writer = CRC64Writer::new(&mut slice);
+///
+/// crc_writer.write_all(&write_buf.as_slice()).unwrap();
+/// assert_eq!(crc_writer.checksum(), 0x29D5_3572_1632_6566);
+/// assert_eq!(write_buf, buf);
+/// ```
 pub struct CRC64Writer<T> {
     writer: T,
     crc64: u64,

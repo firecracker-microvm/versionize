@@ -2,26 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 #![deny(missing_docs)]
 
-//! Provides version tolerant serialization and deserialization facilities and
-//! implements a persistent storage format for Firecracker state snapshots.
-//! The `Versionize` trait defines a generic interface that serializable state structures
-//! need to implement.
+//! Defines a generic interface for version tolerant serialization and
+//! implements it for primitive data types using `bincode` as backend.
 //!
-//! `VersionMap` exposes an API that maps the individual structure versions to
-//! a root version. This mapping is required both when serializing or deserializing structures as
-//! it needs to know which version of structure to serialize for a given target data version.
+//! The interface has two components:
+//! - `Versionize` trait
+//! - `VersionMap` helper
 //!
-//! The Versionize proc macro supports structures and enums.
-//! Supported primitives: u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, char, f32, f64,
-//! String, Vec<T>, Arrays up to 32 elements, Box<T>, Wrapping<T>, Option<T>, FamStructWrapper<T>,
-//! and (T, U).
+//! `VersionMap` maps individual structure/enum versions to a root version
+//! (app version). This mapping is required both when serializing or
+//! deserializing structures as it needs to know which version of structure
+//! to serialize for a given target app version.
+//!
+//! `Versionize` trait is implemented for the following primitives:
+//! u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, char, f32, f64,
+//! String, Vec<T>, Arrays up to 32 elements, Box<T>, Wrapping<T>, Option<T>,
+//! FamStructWrapper<T>, and (T, U).
 //!
 //! Known issues and limitations:
 //! - Union serialization is not supported via the `Versionize` proc macro.
-//! - Implementing Versionize for non-repr(C) unions can result in undefined behaviour
-//! and MUST be avoided.
-//! - Versionize trait implementations for repr(C) unions must be backed by extensive testing.
-//! - Semantic serialization and deserialization is available only for structures.
+//! - Implementing `Versionize` for non-repr(C) unions can result in undefined
+//! behaviour and MUST be avoided.
+//! - Versionize trait implementations for repr(C) unions must be backed by
+//! extensive testing.
+//! - Semantic serialization and deserialization is available only for
+//! structures.
 //!
 extern crate bincode;
 extern crate crc64;
@@ -39,16 +44,16 @@ use std::io::{Read, Write};
 pub use version_map::VersionMap;
 use versionize_derive::Versionize;
 
-/// Versioned serialization error definitions.
+/// Versioned serialization/deserialization error definitions.
 #[derive(Debug, PartialEq)]
 pub enum VersionizeError {
     /// An IO error occured.
     Io(i32),
-    /// A serialization error.
+    /// Generic serialization error.
     Serialize(String),
-    /// A deserialization error.
+    /// Generic deserialization error.
     Deserialize(String),
-    /// A user generated semantic error.
+    /// Semantic translation/validation error.
     Semantic(String),
     /// String length exceeded.
     StringLength(usize),
@@ -84,9 +89,53 @@ impl std::fmt::Display for VersionizeError {
 /// Versioned serialization/deserialization result.
 pub type VersionizeResult<T> = std::result::Result<T, VersionizeError>;
 
-/// Trait that provides an interface for version aware serialization and deserialization.
+/// Trait that provides an interface for version aware serialization and
+/// deserialization.
+/// The [Versionize proc macro][1] can generate an implementation for a given
+/// type if generics are not used, otherwise a manual implementation is
+/// required.
+///
+/// Example implementation
+/// ```
+/// extern crate versionize;
+/// extern crate versionize_derive;
+/// use versionize::{VersionMap, Versionize, VersionizeResult};
+/// use versionize_derive::Versionize;
+///
+/// struct MyType<T>(T);
+///
+/// impl<T> Versionize for MyType<T>
+/// where
+/// T: Versionize,
+/// {
+///     #[inline]
+///     fn serialize<W: std::io::Write>(
+///         &self,
+///         writer: &mut W,
+///         version_map: &VersionMap,
+///         app_version: u16,
+///     ) -> VersionizeResult<()> {
+///         self.0.serialize(writer, version_map, app_version)
+///     }
+///
+///     #[inline]
+///     fn deserialize<R: std::io::Read>(
+///         reader: &mut R,
+///         version_map: &VersionMap,
+///         app_version: u16,
+///     ) -> VersionizeResult<Self> {
+///         Ok(MyType(T::deserialize(reader, version_map, app_version)?))
+///     }
+///
+///     fn version() -> u16 {
+///         1
+///     }
+/// }
+/// ```
+/// [1]: https://docs.rs/versionize_derive/latest/versionize_derive/derive.Versionize.html
 pub trait Versionize {
-    /// Serializes `self` to `target_verion` using the specficifed `writer` and `version_map`.
+    /// Serializes `self` to `target_verion` using the specficifed `writer` and
+    /// `version_map`.
     fn serialize<W: Write>(
         &self,
         writer: &mut W,
@@ -94,8 +143,8 @@ pub trait Versionize {
         target_version: u16,
     ) -> VersionizeResult<()>;
 
-    /// Returns a new instance of `Self` by deserialzing from `source_version` using the
-    /// specficifed `reader` and `version_map`.
+    /// Returns a new instance of `Self` by deserializing from `source_version`
+    /// using the specficifed `reader` and `version_map`.
     fn deserialize<R: Read>(
         reader: &mut R,
         version_map: &VersionMap,
@@ -105,6 +154,8 @@ pub trait Versionize {
         Self: Sized;
 
     /// Returns the `Self` type id.
+    /// The returned ID represents a globally unique identifier for a type.
+    /// It is required by the `VersionMap` implementation.
     fn type_id() -> std::any::TypeId
     where
         Self: 'static,
