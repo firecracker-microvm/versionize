@@ -6,16 +6,15 @@
 use self::super::{VersionMap, Versionize, VersionizeError, VersionizeResult};
 use vmm_sys_util::fam::{FamStruct, FamStructWrapper};
 
-/// Maximum string len in bytes (16KB).
+/// Maximum allowed string len in bytes (16KB).
+/// Calling `serialize()` or `deserialiaze()` will fail beyond this limit.
 pub const MAX_STRING_LEN: usize = 16384;
-/// Maximum vec size in bytes (10MB).
+/// Maximum allowed vec size in bytes (10MB).
+/// Calling `serialize()` or `deserialiaze()` will fail beyond this limit.
 pub const MAX_VEC_SIZE: usize = 10_485_760;
 
-/// Implements the Versionize trait for primitive types that also implement
-/// serde's Serialize/Deserialize: use serde_bincode as a backend for
-/// serialization.
-///
-/// !TODO: Implement a backend abstraction layer so we can easily plug in different backends.
+/// A macro that implements the Versionize trait for primitive types using the
+/// serde bincode backed.
 macro_rules! impl_versionize {
     ($ty:ident) => {
         impl Versionize for $ty {

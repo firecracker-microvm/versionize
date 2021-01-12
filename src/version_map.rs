@@ -1,9 +1,64 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Maps struct/enum/union versions to a sequence of root versions.
-//! This is required to support the concept of a snapshot version
-//! composed of individually versioned components.
+//! A helper to map struct and enum versions to a sequence of root versions.
+//! This helper is required to support the versioning of a hierarchy of
+//! structures composed of individually versioned structures or enums.
+//!
+//! ```rust
+//! extern crate versionize;
+//! extern crate versionize_derive;
+//!
+//! use versionize::{VersionMap, Versionize, VersionizeResult};
+//! use versionize_derive::Versionize;
+//!
+//! #[derive(Versionize)]
+//! pub struct Struct1 {
+//!     a: u32,
+//!     #[version(start = 2)]
+//!     b: u8,
+//! }
+//!
+//! #[derive(Versionize)]
+//! pub struct Struct2 {
+//!     x: u32,
+//!     #[version(start = 2)]
+//!     y: u8,
+//! }
+//!
+//! #[derive(Versionize)]
+//! pub struct State {
+//!     struct1: Struct1,
+//!     struct2: Struct2,
+//! }
+//!
+//! let mut version_map = VersionMap::new(); //
+//! version_map
+//!     .new_version()
+//!     .set_type_version(Struct1::type_id(), 2)
+//!     .new_version()
+//!     .set_type_version(Struct2::type_id(), 2);
+//!
+//! // Check that there are 3 root versions.
+//! assert_eq!(version_map.latest_version(), 3);
+//!
+//! // Check that root version 1 has all structs at version 1.
+//! assert_eq!(version_map.get_type_version(1, Struct1::type_id()), 1);
+//! assert_eq!(version_map.get_type_version(1, Struct2::type_id()), 1);
+//! assert_eq!(version_map.get_type_version(1, State::type_id()), 1);
+//!
+//!
+//! // Check that root version 2 has Struct1 at version 2 and Struct 2
+//! // at version 1.
+//! assert_eq!(version_map.get_type_version(2, Struct1::type_id()), 2);
+//! assert_eq!(version_map.get_type_version(2, Struct2::type_id()), 1);
+//! assert_eq!(version_map.get_type_version(1, State::type_id()), 1);
+//!
+//! // Check that root version 3 has Struct1 and Struct2 at version 2.
+//! assert_eq!(version_map.get_type_version(3, Struct1::type_id()), 2);
+//! assert_eq!(version_map.get_type_version(3, Struct2::type_id()), 2);
+//! assert_eq!(version_map.get_type_version(3, State::type_id()), 1);
+//! ```
 
 use std::any::TypeId;
 use std::collections::hash_map::HashMap;
@@ -11,25 +66,22 @@ use std::collections::hash_map::HashMap;
 const BASE_VERSION: u16 = 1;
 
 ///
-/// The VersionMap API provides functionality to define the version for each serialized
+/// The VersionMap API provides functionality to define the version for each
 /// type and attach them to specific root versions.
-///
-/// !TODO: Find an O(1) solution for `get_type_version()`.
-///
 #[derive(Clone, Debug, Default)]
 pub struct VersionMap {
     versions: Vec<HashMap<TypeId, u16>>,
 }
 
 impl VersionMap {
-    /// Create a new version map and set root version to 1.
+    /// Create a new version map initialized at version 1.
     pub fn new() -> Self {
         VersionMap {
             versions: vec![HashMap::new(); 1],
         }
     }
 
-    /// Bumps root version by 1 to create a new root version and set it as latest version.
+    /// Bumps root version by 1 to create a new root version.
     pub fn new_version(&mut self) -> &mut Self {
         self.versions.push(HashMap::new());
         self
@@ -63,7 +115,7 @@ impl VersionMap {
         BASE_VERSION
     }
 
-    /// Returns the latest top version.
+    /// Returns the latest version.
     pub fn latest_version(&self) -> u16 {
         self.versions.len() as u16
     }
