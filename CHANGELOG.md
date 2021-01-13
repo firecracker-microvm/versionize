@@ -1,3 +1,7 @@
+# v0.1.5
+
+- Added more documentation and examples.
+
 # v0.1.4
 
 - Removed Versionize proc macro support for unions. Serializing unions can lead to undefined behaviour especially when no
