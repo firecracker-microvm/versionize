@@ -369,9 +369,10 @@ where
                 .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
         // Construct the object from the array items.
         // Header(T) fields will be initialized by Default trait impl.
-        let mut object = FamStructWrapper::from_entries(&entries);
+        let mut object = FamStructWrapper::from_entries(&entries)
+            .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
         // Update Default T with the deserialized header.
-        std::mem::replace(object.as_mut_fam_struct(), header);
+        *object.as_mut_fam_struct() = header;
         Ok(object)
     }
 
