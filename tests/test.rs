@@ -1223,7 +1223,33 @@ impl Message {
     }
 }
 
+#[repr(C)]
+#[derive(Debug, Default, Versionize)]
+struct Message2 {
+    pub len: u32,
+    #[version(end = 4)]
+    pub padding: u32,
+    pub value: u32,
+    #[version(start = 2, default_fn = "default_extra_value")]
+    pub extra_value: u16,
+    #[version(start = 3, end = 4, default_fn = "default_status")]
+    pub status: Wrapping<bool>,
+    pub entries: __IncompleteArrayField<u32>,
+}
+
+impl Message2 {
+    fn default_extra_value(_source_version: u16) -> u16 {
+        4
+    }
+
+    fn default_status(_source_version: u16) -> Wrapping<bool> {
+        Wrapping(false)
+    }
+}
+
 generate_fam_struct_impl!(Message, u32, entries, u32, len, 100);
+// Duplicated structure used but with max_len 1 - for negative testing.
+generate_fam_struct_impl!(Message2, u32, entries, u32, len, 1);
 
 #[repr(C)]
 #[derive(Default)]
@@ -1292,6 +1318,7 @@ impl<T> Versionize for __IncompleteArrayField<T> {
 }
 
 type MessageFamStructWrapper = FamStructWrapper<Message>;
+type Message2FamStructWrapper = FamStructWrapper<Message2>;
 
 #[test]
 fn test_versionize_famstructwrapper() {
@@ -1303,7 +1330,7 @@ fn test_versionize_famstructwrapper() {
         .new_version()
         .set_type_version(Message::type_id(), 4);
 
-    let mut state = MessageFamStructWrapper::new(0);
+    let mut state = MessageFamStructWrapper::new(0).unwrap();
     state.as_mut_fam_struct().padding = 8;
     state.as_mut_fam_struct().extra_value = 16;
     state.as_mut_fam_struct().status = Wrapping(true);
@@ -1422,7 +1449,7 @@ pub struct FamStructTest {
 
 impl FamStructTest {
     fn default_message(_target_version: u16) -> Vec<MessageFamStructWrapper> {
-        let mut f = MessageFamStructWrapper::new(0);
+        let mut f = MessageFamStructWrapper::new(0).unwrap();
         f.as_mut_fam_struct().padding = 1;
         f.as_mut_fam_struct().extra_value = 2;
 
@@ -1448,7 +1475,7 @@ impl FamStructTest {
         // Fail if semantic deserialization is called for a version >= 2.
         assert!(target_version < 2);
 
-        let mut f = MessageFamStructWrapper::new(0);
+        let mut f = MessageFamStructWrapper::new(0).unwrap();
         f.as_mut_fam_struct().padding = 3;
         f.as_mut_fam_struct().extra_value = 4;
 
@@ -1472,12 +1499,12 @@ fn test_versionize_struct_with_famstructs() {
 
     let mut snapshot_mem = vec![0u8; 1024];
 
-    let mut f = MessageFamStructWrapper::new(0);
+    let mut f = MessageFamStructWrapper::new(0).unwrap();
     f.as_mut_fam_struct().padding = 5;
     f.as_mut_fam_struct().extra_value = 6;
     f.push(10).unwrap();
 
-    let mut f2 = MessageFamStructWrapper::new(0);
+    let mut f2 = MessageFamStructWrapper::new(0).unwrap();
     f2.as_mut_fam_struct().padding = 7;
     f2.as_mut_fam_struct().extra_value = 8;
     f2.push(20).unwrap();
@@ -1556,12 +1583,30 @@ impl SomeStruct {
         // Fail if semantic serialization is called for the latest version.
         assert!(target_version < 2);
         self.message.as_mut_fam_struct().padding += 2;
+
         Ok(())
     }
 }
 
-// TODO: remove this test once FamStructWrapper `Clone` implementation gets fixed.
-// Tracking issue: https://github.com/rust-vmm/vmm-sys-util/issues/85.
+#[derive(Clone, Versionize)]
+pub struct SomeStruct2 {
+    message: Message2FamStructWrapper,
+    #[version(start = 2, ser_fn = "ser_u16")]
+    some_u16: u16,
+}
+
+impl SomeStruct2 {
+    fn ser_u16(&mut self, target_version: u16) -> VersionizeResult<()> {
+        // Fail if semantic serialization is called for the latest version.
+        assert!(target_version < 2);
+        self.message.as_mut_fam_struct().padding += 2;
+
+        Ok(())
+    }
+}
+
+// `Clone` issue fixed: https://github.com/rust-vmm/vmm-sys-util/issues/85.
+// We are keeping this as regression test.
 #[test]
 fn test_famstructwrapper_clone() {
     // Test that having a `FamStructWrapper<T>` in a structure that implements
@@ -1570,7 +1615,7 @@ fn test_famstructwrapper_clone() {
     let mut vm = VersionMap::new();
     vm.new_version().set_type_version(SomeStruct::type_id(), 2);
 
-    let mut f = MessageFamStructWrapper::new(0);
+    let mut f = MessageFamStructWrapper::new(0).unwrap();
     f.as_mut_fam_struct().padding = 8;
 
     f.push(1).unwrap();
@@ -1589,6 +1634,12 @@ fn test_famstructwrapper_clone() {
         .unwrap();
     let mut restored_state =
         <SomeStruct as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1).unwrap();
+
+    // Negative scenario - FamStruct versionize impl fails due to SizeLimitExceeded.
+    assert!(
+        <SomeStruct2 as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1).is_err()
+    );
+
     let original_values = state.message.as_slice();
     let restored_values = restored_state.message.as_slice();
 
@@ -1597,9 +1648,9 @@ fn test_famstructwrapper_clone() {
         restored_state.message.as_fam_struct_ref().padding
     );
     assert_eq!(original_values, restored_values);
-    // `padding` field will take the default value (0), and then it will be incremented with 2
+    // `padding` field will have its value serialized (8), and then it will be incremented with 2
     // by `ser_u16`.
-    assert_eq!(2, restored_state.message.as_fam_struct_ref().padding);
+    assert_eq!(10, restored_state.message.as_fam_struct_ref().padding);
 
     // Serialize as v2.
     state
@@ -1607,10 +1658,13 @@ fn test_famstructwrapper_clone() {
         .unwrap();
     restored_state =
         <SomeStruct as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 2).unwrap();
-    assert_ne!(
+
+    // Padding is correctly preserved and ser_u16 is not called - it would fail due to ser_u16
+    // assert anyways, but we double that check here.
+    assert_eq!(
         state.message.as_fam_struct_ref().padding,
         restored_state.message.as_fam_struct_ref().padding
     );
-    // `padding` field will take the default value (0). `ser_u16` won't be called at v2.
-    assert_eq!(0, restored_state.message.as_fam_struct_ref().padding);
+    // `padding` field will have its value preserved (8). `ser_u16` won't be called at v2.
+    assert_eq!(8, restored_state.message.as_fam_struct_ref().padding);
 }
