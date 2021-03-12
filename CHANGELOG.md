@@ -1,3 +1,7 @@
+# v0.1.6
+
+- Upraded vmm-sys-utils to v0.8.0
+
 # v0.1.5
 
 - Added more documentation and examples.
