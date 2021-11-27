@@ -62,22 +62,51 @@
 
 use std::any::TypeId;
 use std::collections::hash_map::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 const BASE_VERSION: u16 = 1;
 
+/// Trait to check whether is specific `version` is supported by a `VersionMap`.
+pub trait VersionFilter: Debug {
+    /// Check whether the `version` is supported or not.
+    fn is_supported(&self, version: u16) -> bool;
+}
+
+impl VersionFilter for () {
+    fn is_supported(&self, _version: u16) -> bool {
+        true
+    }
+}
 ///
 /// The VersionMap API provides functionality to define the version for each
 /// type and attach them to specific root versions.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct VersionMap {
     versions: Vec<HashMap<TypeId, u16>>,
+    filter: Arc<dyn VersionFilter>,
+}
+
+impl Default for VersionMap {
+    fn default() -> Self {
+        VersionMap {
+            versions: vec![HashMap::new(); 1],
+            filter: Arc::new(()),
+        }
+    }
 }
 
 impl VersionMap {
     /// Create a new version map initialized at version 1.
     pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Create a new version map with specified version filter.
+    pub fn with_filter(filter: Arc<dyn VersionFilter>) -> Self {
         VersionMap {
             versions: vec![HashMap::new(); 1],
+            filter,
         }
     }
 
@@ -119,15 +148,35 @@ impl VersionMap {
     pub fn latest_version(&self) -> u16 {
         self.versions.len() as u16
     }
+
+    /// Check whether the `version` is supported by the version map.
+    pub fn is_supported(&self, version: u16) -> bool {
+        if version == 0 || version > self.latest_version() {
+            false
+        } else {
+            self.filter.is_supported(version)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{TypeId, VersionMap, BASE_VERSION};
+    use std::sync::Arc;
+    use version_map::VersionFilter;
 
     pub struct MyType;
     pub struct MySecondType;
     pub struct MyThirdType;
+
+    #[derive(Debug)]
+    struct MyFilter;
+
+    impl VersionFilter for MyFilter {
+        fn is_supported(&self, version: u16) -> bool {
+            version < 5
+        }
+    }
 
     #[test]
     fn test_default_version() {
@@ -222,5 +271,33 @@ mod tests {
         assert_eq!(vm.latest_version(), 2);
         assert_eq!(vm.get_type_version(129, TypeId::of::<MyType>()), 2);
         assert_eq!(vm.get_type_version(1, TypeId::of::<MyType>()), BASE_VERSION);
+    }
+
+    #[test]
+    fn test_version_filter() {
+        let mut vm = VersionMap::default();
+        vm.new_version();
+
+        assert_eq!(vm.is_supported(0), false);
+        assert_eq!(vm.is_supported(1), true);
+        assert_eq!(vm.is_supported(2), true);
+        assert_eq!(vm.is_supported(3), false);
+
+        let mut vm = VersionMap::with_filter(Arc::new(MyFilter));
+        vm.new_version();
+        vm.new_version();
+        vm.new_version();
+        vm.new_version();
+        vm.new_version();
+
+        let vm1 = vm.clone();
+        assert_eq!(vm1.is_supported(0), false);
+        assert_eq!(vm1.is_supported(1), true);
+        assert_eq!(vm1.is_supported(2), true);
+        assert_eq!(vm1.is_supported(3), true);
+        assert_eq!(vm1.is_supported(4), true);
+        assert_eq!(vm1.is_supported(5), false);
+        assert_eq!(vm1.is_supported(6), false);
+        assert_eq!(vm.latest_version(), 6);
     }
 }
