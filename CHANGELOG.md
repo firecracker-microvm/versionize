@@ -1,3 +1,7 @@
+# [Unreleased]
+
+- Add versionize proc macro support for HashMap, HashSet and VecDeque.
+
 # v0.1.9
 
 - Implement Versionize for i128 and u128
