@@ -48,11 +48,11 @@
 //! assert_eq!(version_map.get_type_version(1, State::type_id()), 1);
 //!
 //!
-//! // Check that root version 2 has Struct1 at version 2 and Struct 2
+//! // Check that root version 2 has Struct1 at version 2 and Struct2
 //! // at version 1.
 //! assert_eq!(version_map.get_type_version(2, Struct1::type_id()), 2);
 //! assert_eq!(version_map.get_type_version(2, Struct2::type_id()), 1);
-//! assert_eq!(version_map.get_type_version(1, State::type_id()), 1);
+//! assert_eq!(version_map.get_type_version(2, State::type_id()), 1);
 //!
 //! // Check that root version 3 has Struct1 and Struct2 at version 2.
 //! assert_eq!(version_map.get_type_version(3, Struct1::type_id()), 2);
