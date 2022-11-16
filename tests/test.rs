@@ -1182,7 +1182,7 @@ fn test_versionize_struct() {
             .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)
             .unwrap_err(),
         VersionizeError::Serialize(
-            "Io(Custom { kind: WriteZero, error: \"failed to write whole buffer\" })".to_owned()
+            "Io(Error { kind: WriteZero, message: \"failed to write whole buffer\" })".to_owned()
         )
     );
     snapshot_mem = vec![0u8; 256];
@@ -1196,7 +1196,8 @@ fn test_versionize_struct() {
     assert_eq!(
         <Test as Versionize>::deserialize(&mut snapshot_mem.as_slice(), &vm, 1).unwrap_err(),
         VersionizeError::Deserialize(
-            "Io(Custom { kind: UnexpectedEof, error: \"failed to fill whole buffer\" })".to_owned()
+            "Io(Error { kind: UnexpectedEof, message: \"failed to fill whole buffer\" })"
+                .to_owned()
         )
     );
 }
@@ -1432,7 +1433,7 @@ fn test_versionize_famstructwrapper() {
             .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)
             .unwrap_err(),
         VersionizeError::Serialize(
-            "Io(Custom { kind: WriteZero, error: \"failed to write whole buffer\" })".to_owned()
+            "Io(Error { kind: WriteZero, message: \"failed to write whole buffer\" })".to_owned()
         )
     );
 }

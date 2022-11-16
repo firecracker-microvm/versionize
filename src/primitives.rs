@@ -481,7 +481,7 @@ mod tests {
             <String as Versionize>::deserialize(&mut buffer.as_slice().split_at(6).0, &vm, 1)
                 .unwrap_err(),
             VersionizeError::Deserialize(
-                "Io(Custom { kind: UnexpectedEof, error: \"failed to fill whole buffer\" })"
+                "Io(Error { kind: UnexpectedEof, message: \"failed to fill whole buffer\" })"
                     .to_owned()
             )
         );
@@ -519,7 +519,7 @@ mod tests {
             <Vec<u8> as Versionize>::deserialize(&mut buffer.as_slice().split_at(6).0, &vm, 1)
                 .unwrap_err(),
             VersionizeError::Deserialize(
-                "Io(Custom { kind: UnexpectedEof, error: \"failed to fill whole buffer\" })"
+                "Io(Error { kind: UnexpectedEof, message: \"failed to fill whole buffer\" })"
                     .to_owned()
             )
         );
