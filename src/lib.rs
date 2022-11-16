@@ -27,7 +27,6 @@
 //! extensive testing.
 //! - Semantic serialization and deserialization is available only for
 //! structures.
-//!
 extern crate bincode;
 extern crate crc64;
 extern crate serde;
@@ -107,7 +106,7 @@ pub type VersionizeResult<T> = std::result::Result<T, VersionizeError>;
 ///
 /// impl<T> Versionize for MyType<T>
 /// where
-/// T: Versionize,
+///     T: Versionize,
 /// {
 ///     #[inline]
 ///     fn serialize<W: std::io::Write>(
