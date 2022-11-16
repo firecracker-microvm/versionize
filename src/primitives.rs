@@ -39,8 +39,8 @@ macro_rules! impl_versionize {
             where
                 Self: Sized,
             {
-                Ok(bincode::deserialize_from(&mut reader)
-                    .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?)
+                bincode::deserialize_from(&mut reader)
+                    .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))
             }
 
             // Not used.
@@ -103,8 +103,8 @@ impl Versionize for String {
         reader
             .read_exact(v.as_mut_slice())
             .map_err(|e| VersionizeError::Io(e.raw_os_error().unwrap_or(0)))?;
-        Ok(String::from_utf8(v)
-            .map_err(|err| VersionizeError::Deserialize(format!("Utf8 error: {:?}", err)))?)
+        String::from_utf8(v)
+            .map_err(|err| VersionizeError::Deserialize(format!("Utf8 error: {:?}", err)))
     }
 
     // Not used yet.
@@ -166,7 +166,6 @@ macro_rules! impl_versionize_arrays {
     }
 }
 
-#[allow(clippy::reversed_empty_ranges)]
 impl_versionize_arrays! {
     1  2  3  4  5  6  7  8  9 10
    11 12 13 14 15 16 17 18 19 20
@@ -248,7 +247,7 @@ where
         app_version: u16,
     ) -> VersionizeResult<()> {
         // Serialize an Option just like bincode does: u8, T.
-        match &*self {
+        match self {
             Some(value) => {
                 1u8.serialize(writer, version_map, app_version)?;
                 value.serialize(writer, version_map, app_version)
@@ -417,6 +416,8 @@ impl<T: Versionize, U: Versionize> Versionize for (T, U) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::undocumented_unsafe_blocks)]
+
     use super::*;
     use super::{VersionMap, Versionize, VersionizeResult};
 
@@ -572,6 +573,7 @@ mod tests {
         _vec: Vec<u64>,
         _option: Option<bool>,
         _enums: Vec<CompatibleEnum>,
+        #[allow(clippy::box_collection)] // we want to test boxes explicitly
         _box: Box<String>,
     }
 
@@ -684,10 +686,11 @@ mod tests {
         let vm = VersionMap::new();
         let mut snapshot_mem = vec![0u8; 64];
 
-        let mut store = Vec::new();
-        store.push("test 1".to_owned());
-        store.push("test 2".to_owned());
-        store.push("test 3".to_owned());
+        let store = vec![
+            "test 1".to_owned(),
+            "test 2".to_owned(),
+            "test 3".to_owned(),
+        ];
 
         store
             .serialize(&mut snapshot_mem.as_mut_slice(), &vm, 1)

@@ -1,6 +1,8 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(clippy::missing_safety_doc)]
+
 extern crate versionize;
 extern crate versionize_derive;
 extern crate vmm_sys_util;
@@ -14,7 +16,7 @@ use vmm_sys_util::generate_fam_struct_impl;
 use versionize::{VersionMap, Versionize, VersionizeError, VersionizeResult};
 use versionize_derive::Versionize;
 
-#[derive(Debug, PartialEq, Versionize)]
+#[derive(Debug, PartialEq, Versionize, Eq)]
 pub enum TestState {
     Zero,
     One(u32),
@@ -149,6 +151,7 @@ fn test_hardcoded_struct_deserialization() {
         option_1: Option<u8>,
         #[version(start = 3, end = 4, default_fn = "default_vec")]
         vec_1: Vec<char>,
+        #[allow(clippy::box_collection)]  // we want to explicitly test Box
         box_1: Box<String>,
         #[version(start = 3)]
         wrapping_1: Wrapping<u32>,
@@ -353,7 +356,7 @@ fn test_hardcoded_enum_deserialization() {
     );
 }
 
-#[derive(Debug, PartialEq, Versionize)]
+#[derive(Debug, PartialEq, Eq, Versionize)]
 pub struct A {
     a: u32,
     #[version(start = 1, end = 2)]
@@ -362,7 +365,7 @@ pub struct A {
     c: String,
 }
 
-#[derive(Debug, PartialEq, Versionize)]
+#[derive(Debug, PartialEq, Eq, Versionize)]
 pub struct X {
     x: bool,
     a_1: A,
@@ -380,7 +383,7 @@ impl A {
 
 impl X {
     fn default_y(_source_version: u16) -> Box<usize> {
-        Box::from(4 as usize)
+        Box::from(4)
     }
 
     fn default_z(_source_version: u16) -> Vec<u8> {
@@ -441,7 +444,7 @@ fn test_nested_structs_deserialization() {
             b: Some(TestState::One(4)),
             c: "some_string".to_owned(),
         },
-        y: Box::from(2 as usize),
+        y: Box::from(2),
         z: vec![16, 4],
     };
     assert_eq!(restored_state, expected_state);
@@ -458,7 +461,7 @@ fn test_nested_structs_deserialization() {
             b: None,
             c: "random".to_owned(),
         },
-        y: Box::from(2 as usize),
+        y: Box::from(2),
         z: vec![16, 4],
     };
     assert_eq!(restored_state, expected_state);
@@ -475,7 +478,7 @@ fn test_nested_structs_deserialization() {
             b: None,
             c: "random".to_owned(),
         },
-        y: Box::from(4 as usize),
+        y: Box::from(4),
         z: vec![24; 4],
     };
     assert_eq!(restored_state, expected_state);
@@ -514,7 +517,7 @@ fn test_versionize_struct_with_array() {
     assert_eq!(restored_test_struct, test_struct);
 }
 
-#[derive(Clone, Debug, PartialEq, Versionize)]
+#[derive(Clone, Debug, PartialEq, Eq, Versionize)]
 pub enum DeviceStatus {
     Inactive,
     Active,
@@ -528,7 +531,7 @@ impl Default for DeviceStatus {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Versionize)]
+#[derive(Clone, Debug, PartialEq, Eq, Versionize)]
 pub enum OperationSupported {
     Add,
     Remove,
@@ -567,7 +570,7 @@ impl OperationSupported {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Versionize)]
+#[derive(Clone, Debug, PartialEq, Eq, Versionize)]
 pub struct Device {
     name: String,
     id: Wrapping<u32>,
@@ -633,7 +636,7 @@ impl Device {
         assert!(target_version < 2);
         self.some_params.push("active".to_owned());
         self.some_params
-            .retain(|x| x.clone() != "inactive".to_owned());
+            .retain(|x| x.clone() != *"inactive");
         Ok(())
     }
 
@@ -782,7 +785,7 @@ fn test_versionize_struct_with_enums() {
     );
 }
 
-#[derive(Clone, Debug, PartialEq, Versionize)]
+#[derive(Clone, Debug, PartialEq, Eq, Versionize)]
 pub enum State {
     Zero,
     One(bool),

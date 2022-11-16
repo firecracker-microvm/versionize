@@ -146,7 +146,7 @@ mod tests {
 
         let mut slice = buf.as_mut_slice();
         let mut crc_writer = CRC64Writer::new(&mut slice);
-        crc_writer.write_all(&write_buf.as_slice()).unwrap();
+        crc_writer.write_all(write_buf.as_slice()).unwrap();
         crc_writer.flush().unwrap();
         assert_eq!(crc_writer.checksum(), 0x29D5_3572_1632_6566);
         assert_eq!(crc_writer.checksum(), crc_writer.crc64);
