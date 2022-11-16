@@ -151,7 +151,7 @@ fn test_hardcoded_struct_deserialization() {
         option_1: Option<u8>,
         #[version(start = 3, end = 4, default_fn = "default_vec")]
         vec_1: Vec<char>,
-        #[allow(clippy::box_collection)]  // we want to explicitly test Box
+        #[allow(clippy::box_collection)] // we want to explicitly test Box
         box_1: Box<String>,
         #[version(start = 3)]
         wrapping_1: Wrapping<u32>,
@@ -635,8 +635,7 @@ impl Device {
         // Fail if semantic serialization is called for a version >= 2.
         assert!(target_version < 2);
         self.some_params.push("active".to_owned());
-        self.some_params
-            .retain(|x| x.clone() != *"inactive");
+        self.some_params.retain(|x| x.clone() != *"inactive");
         Ok(())
     }
 
