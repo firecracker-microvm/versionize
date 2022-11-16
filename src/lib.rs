@@ -45,6 +45,7 @@ pub use version_map::VersionMap;
 use versionize_derive::Versionize;
 
 /// Versioned serialization/deserialization error definitions.
+#[allow(clippy::derive_partial_eq_without_eq)] // FIXME: next major release
 #[derive(Debug, PartialEq)]
 pub enum VersionizeError {
     /// An IO error occured.

@@ -278,10 +278,10 @@ mod tests {
         let mut vm = VersionMap::default();
         vm.new_version();
 
-        assert_eq!(vm.is_supported(0), false);
-        assert_eq!(vm.is_supported(1), true);
-        assert_eq!(vm.is_supported(2), true);
-        assert_eq!(vm.is_supported(3), false);
+        assert!(!vm.is_supported(0));
+        assert!(vm.is_supported(1));
+        assert!(vm.is_supported(2));
+        assert!(!vm.is_supported(3));
 
         let mut vm = VersionMap::with_filter(Arc::new(MyFilter));
         vm.new_version();
@@ -291,13 +291,13 @@ mod tests {
         vm.new_version();
 
         let vm1 = vm.clone();
-        assert_eq!(vm1.is_supported(0), false);
-        assert_eq!(vm1.is_supported(1), true);
-        assert_eq!(vm1.is_supported(2), true);
-        assert_eq!(vm1.is_supported(3), true);
-        assert_eq!(vm1.is_supported(4), true);
-        assert_eq!(vm1.is_supported(5), false);
-        assert_eq!(vm1.is_supported(6), false);
+        assert!(!vm1.is_supported(0));
+        assert!(vm1.is_supported(1));
+        assert!(vm1.is_supported(2));
+        assert!(vm1.is_supported(3));
+        assert!(vm1.is_supported(4));
+        assert!(!vm1.is_supported(5));
+        assert!(!vm1.is_supported(6));
         assert_eq!(vm.latest_version(), 6);
     }
 }
