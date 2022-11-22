@@ -83,7 +83,7 @@ impl VersionFilter for () {
 #[derive(Clone, Debug)]
 pub struct VersionMap {
     versions: Vec<HashMap<TypeId, u16>>,
-    filter: Arc<dyn VersionFilter>,
+    filter: Arc<dyn VersionFilter + Send + Sync>,
 }
 
 impl Default for VersionMap {
@@ -102,7 +102,7 @@ impl VersionMap {
     }
 
     /// Create a new version map with specified version filter.
-    pub fn with_filter(filter: Arc<dyn VersionFilter>) -> Self {
+    pub fn with_filter(filter: Arc<dyn VersionFilter + Send + Sync>) -> Self {
         VersionMap {
             versions: vec![HashMap::new(); 1],
             filter,
@@ -218,6 +218,13 @@ mod tests {
             assert_eq!(vm.get_type_version(i, TypeId::of::<MySecondType>()), i + 1);
             assert_eq!(vm.get_type_version(i, TypeId::of::<MyThirdType>()), i + 2);
         }
+    }
+
+    #[test]
+    fn test_version_map_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+
+        assert_send_sync::<VersionMap>();
     }
 
     #[test]
