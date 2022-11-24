@@ -1,4 +1,12 @@
-# v0.1.7
+# v0.1.9
+
+- Implement Versionize for i128 and u128
+
+# v0.1.8
+
+- Fixed VersionMap not implementing Sync + Send in 0.1.7
+
+# v0.1.7 [yanked]
 
 - Use caret requirements instead of comparison requirements
   for specifying dependencies
