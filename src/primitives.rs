@@ -57,11 +57,13 @@ impl_versionize!(i8);
 impl_versionize!(i16);
 impl_versionize!(i32);
 impl_versionize!(i64);
+impl_versionize!(i128);
 impl_versionize!(usize);
 impl_versionize!(u8);
 impl_versionize!(u16);
 impl_versionize!(u32);
 impl_versionize!(u64);
+impl_versionize!(u128);
 impl_versionize!(f32);
 impl_versionize!(f64);
 impl_versionize!(char);
@@ -447,10 +449,12 @@ mod tests {
     primitive_int_test!(u16, test_ser_de_u16);
     primitive_int_test!(u32, test_ser_de_u32);
     primitive_int_test!(u64, test_ser_de_u64);
+    primitive_int_test!(u128, test_ser_de_u128);
     primitive_int_test!(i8, test_ser_de_i8);
     primitive_int_test!(i16, test_ser_de_i16);
     primitive_int_test!(i32, test_ser_de_i32);
     primitive_int_test!(i64, test_ser_de_i64);
+    primitive_int_test!(i128, test_ser_de_i128);
     primitive_int_test!(f32, test_ser_de_f32);
     primitive_int_test!(f64, test_ser_de_f64);
     primitive_int_test!(char, test_ser_de_char);
@@ -562,10 +566,12 @@ mod tests {
         _u16: u16,
         _u32: u32,
         _u64: u64,
+        _u128: u128,
         _i8: i8,
         _i16: i16,
         _i32: i32,
         _i64: i64,
+        _i128: i128,
         _f32: f32,
         _f64: f64,
         _usize: usize,
@@ -589,10 +595,12 @@ mod tests {
             _u16: 32000,
             _u32: 0x1234_5678,
             _u64: 0x1234_5678_9875_4321,
+            _u128: 0x1234_5678_1234_5678_1234_5678_1234_5678,
             _i8: -1,
             _i16: -32000,
             _i32: -0x1234_5678,
             _i64: -0x1234_5678_9875_4321,
+            _i128: -0x1234_5678_9098_7654_3212_3456_7890_9876,
             _usize: 0x1234_5678_9875_4321,
             _isize: -0x1234_5678_9875_4321,
             _f32: 0.123,
@@ -626,10 +634,12 @@ mod tests {
             _u16: 32000,
             _u32: 0x1234_5678,
             _u64: 0x1234_5678_9875_4321,
+            _u128: 0x1234_1234_1234_1234_1234_1234_1234_1234,
             _i8: -1,
             _i16: -32000,
             _i32: -0x1234_5678,
             _i64: -0x1234_5678_9875_4321,
+            _i128: -0x1234_1234_1234_1234_1234_1234_1234_1234,
             _usize: 0x1234_5678_9875_4321,
             _isize: -0x1234_5678_9875_4321,
             _f32: 0.123,
