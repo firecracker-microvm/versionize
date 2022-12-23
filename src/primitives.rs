@@ -114,7 +114,7 @@ impl Versionize for String {
         1
     }
 }
-    
+
 impl<T, const N: usize> Versionize for [T; N]
 where
     T: Copy + Default + Versionize,
@@ -140,8 +140,8 @@ where
         app_version: u16,
     ) -> VersionizeResult<Self> {
         let mut array = [T::default(); N];
-        for i in 0..N {
-            array[i] = T::deserialize(reader, version_map, app_version)?;
+        for elem in &mut array {
+            *elem = T::deserialize(reader, version_map, app_version)?;
         }
         Ok(array)
     }
@@ -151,7 +151,6 @@ where
         1
     }
 }
-
 
 impl<T> Versionize for Box<T>
 where
