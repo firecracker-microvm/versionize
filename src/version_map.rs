@@ -89,7 +89,7 @@ pub struct VersionMap {
 impl Default for VersionMap {
     fn default() -> Self {
         VersionMap {
-            versions: vec![HashMap::new(); 1],
+            versions: vec![HashMap::new()],
             filter: Arc::new(()),
         }
     }
@@ -104,7 +104,7 @@ impl VersionMap {
     /// Create a new version map with specified version filter.
     pub fn with_filter(filter: Arc<dyn VersionFilter + Send + Sync>) -> Self {
         VersionMap {
-            versions: vec![HashMap::new(); 1],
+            versions: vec![HashMap::new()],
             filter,
         }
     }
