@@ -654,7 +654,7 @@ mod tests {
             _box: Box::new("Box".to_owned()),
         };
 
-        bincode::serialize_into(&mut snapshot_mem.as_mut_slice(), &test_struct).unwrap();
+        bincode::serialize_into(snapshot_mem.as_mut_slice(), &test_struct).unwrap();
 
         let restored_state: TestCompatibility =
             Versionize::deserialize(&mut snapshot_mem.as_slice(), &vm, 1).unwrap();
