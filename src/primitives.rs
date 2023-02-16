@@ -3,8 +3,8 @@
 //! Serialization support for primitive data types.
 #![allow(clippy::float_cmp)]
 
-use self::super::{VersionMap, Versionize, VersionizeError, VersionizeResult};
 use vmm_sys_util::fam::{FamStruct, FamStructWrapper};
+use self::super::{VersionMap, Versionize, VersionizeError, VersionizeResult};
 
 /// Maximum allowed string len in bytes (16KB).
 /// Calling `serialize()` or `deserialiaze()` will fail beyond this limit.
