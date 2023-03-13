@@ -369,6 +369,18 @@ where
         let entries: Vec<<T as FamStruct>::Entry> =
             Vec::deserialize(reader, version_map, app_version)
                 .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+
+        if header.len() != entries.len() {
+            let msg = format!(
+                "Mismatch between length of FAM specified in FamStruct header ({}) \
+                and actual size of FAM ({})",
+                header.len(),
+                entries.len()
+            );
+
+            return Err(VersionizeError::Deserialize(msg));
+        }
+
         // Construct the object from the array items.
         // Header(T) fields will be initialized by Default trait impl.
         let mut object = FamStructWrapper::from_entries(&entries)
