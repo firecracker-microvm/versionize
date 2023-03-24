@@ -1,3 +1,7 @@
+# v0.1.10
+
+- Fixed a possible out of bounds memory access in FamStructWrapper::deserialize
+
 # v0.1.9
 
 - Implement Versionize for i128 and u128
