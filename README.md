@@ -4,6 +4,8 @@ times and minimal size overhead. It does not aim to be a generic serialization
 framework and only the [bincode](https://crates.io/crates/bincode) backend is 
 supported.**
 
+
+
 ## Important note
 
 This crate is currently used for cross-version serialization with the 
