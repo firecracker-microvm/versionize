@@ -1,6 +1,6 @@
 # v0.1.10
 
-- Fixed a possible out of bounds memory access in FamStructWrapper::deserialize
+- Fixed a possible out of bouncdds memory access in FamStructWrapper::deserialize
 
 # v0.1.9
 
