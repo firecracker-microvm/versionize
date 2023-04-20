@@ -1324,6 +1324,32 @@ type MessageFamStructWrapper = FamStructWrapper<Message>;
 type Message2FamStructWrapper = FamStructWrapper<Message2>;
 
 #[test]
+fn test_deserialize_famstructwrapper_invalid_len() {
+    let mut vm = VersionMap::new();
+    vm.new_version()
+        .set_type_version(Message::type_id(), 2)
+        .new_version()
+        .set_type_version(Message::type_id(), 3)
+        .new_version()
+        .set_type_version(Message::type_id(), 4);
+
+    // Create FamStructWrapper with len 2
+    let state = MessageFamStructWrapper::new(0).unwrap();
+    let mut buffer = [0; 256];
+
+    state.serialize(&mut buffer.as_mut_slice(), &vm, 2).unwrap();
+
+    // the `len` field of the header is the first serialized field.
+    // Let's corrupt it by making it bigger than the actual number of serialized elements
+    buffer[0] = 255;
+
+    assert_eq!(
+        MessageFamStructWrapper::deserialize(&mut buffer.as_slice(), &vm, 2).unwrap_err(),
+        VersionizeError::Deserialize("Mismatch between length of FAM specified in FamStruct header (255) and actual size of FAM (0)".to_string())
+    );
+}
+
+#[test]
 fn test_versionize_famstructwrapper() {
     let mut vm = VersionMap::new();
     vm.new_version()
