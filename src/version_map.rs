@@ -59,38 +59,25 @@
 //! assert_eq!(version_map.get_type_version(3, State::type_id()), 1);
 //! ```
 
-use std::any::TypeId;
-use std::collections::hash_map::HashMap;
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
 
-const BASE_VERSION: u16 = 1;
+use crate::{Versionize, VersionizeError, VersionizeResult};
 
-/// Trait to check whether is specific `version` is supported by a `VersionMap`.
-pub trait VersionFilter: Debug {
-    /// Check whether the `version` is supported or not.
-    fn is_supported(&self, version: u16) -> bool;
-}
+pub const MAX_VERSION_NUM: u64 = u16::MAX as u64;
 
-impl VersionFilter for () {
-    fn is_supported(&self, _version: u16) -> bool {
-        true
-    }
-}
 ///
 /// The VersionMap API provides functionality to define the version for each
 /// type and attach them to specific root versions.
 #[derive(Clone, Debug)]
 pub struct VersionMap {
-    versions: Vec<HashMap<TypeId, u16>>,
-    filter: Arc<dyn VersionFilter + Send + Sync>,
+    crates: HashMap<String, semver::Version>,
 }
 
 impl Default for VersionMap {
     fn default() -> Self {
         VersionMap {
-            versions: vec![HashMap::new(); 1],
-            filter: Arc::new(()),
+            crates: HashMap::new(),
         }
     }
 }
@@ -101,209 +88,138 @@ impl VersionMap {
         Default::default()
     }
 
-    /// Create a new version map with specified version filter.
-    pub fn with_filter(filter: Arc<dyn VersionFilter + Send + Sync>) -> Self {
-        VersionMap {
-            versions: vec![HashMap::new(); 1],
-            filter,
-        }
+    pub fn get_crate_version(&self, crate_name: &str) -> VersionizeResult<semver::Version> {
+        self.crates
+            .get(crate_name)
+            .ok_or(VersionizeError::NotFoundCrate(crate_name.to_string()))
+            .cloned()
     }
 
-    /// Bumps root version by 1 to create a new root version.
-    pub fn new_version(&mut self) -> &mut Self {
-        self.versions.push(HashMap::new());
-        self
-    }
+    pub fn set_crate_version(
+        &mut self,
+        crate_name: &str,
+        ver: &str,
+    ) -> VersionizeResult<semver::Version> {
+        let sem_ver = semver::Version::parse(ver)
+            .map_err(|e| VersionizeError::ParseVersion(ver.to_string(), e.to_string()))?;
 
-    /// Define a mapping between a specific type version and the latest root version.
-    pub fn set_type_version(&mut self, type_id: TypeId, type_version: u16) -> &mut Self {
-        // It is safe to unwrap since `self.versions` always has at least 1 element.
-        self.versions
-            .last_mut()
-            .unwrap()
-            .insert(type_id, type_version);
-        self
-    }
-
-    /// Returns the version of `type_id` corresponding to the specified `root_version`.
-    /// If `root_version` is out of range returns the version of `type_id` at latest version.
-    pub fn get_type_version(&self, root_version: u16, type_id: TypeId) -> u16 {
-        let version_space = if root_version > self.latest_version() || root_version == 0 {
-            self.versions.as_slice()
-        } else {
-            self.versions.split_at(root_version as usize).0
-        };
-
-        for i in (0..version_space.len()).rev() {
-            if let Some(version) = version_space[i].get(&type_id) {
-                return *version;
+        if let Some(exist) = self.crates.get(crate_name) {
+            if *exist != sem_ver {
+                return Err(VersionizeError::MultipleVersion(
+                    crate_name.to_string(),
+                    exist.to_string(),
+                    ver.to_string(),
+                ));
             }
-        }
-
-        BASE_VERSION
-    }
-
-    /// Returns the latest version.
-    pub fn latest_version(&self) -> u16 {
-        self.versions.len() as u16
-    }
-
-    /// Check whether the `version` is supported by the version map.
-    pub fn is_supported(&self, version: u16) -> bool {
-        if version == 0 || version > self.latest_version() {
-            false
         } else {
-            self.filter.is_supported(version)
+            self.crates.insert(crate_name.to_owned(), sem_ver.clone());
         }
+
+        Ok(sem_ver)
+    }
+}
+
+impl Versionize for semver::Version {
+    fn serialize<W: std::io::Write>(
+        &self,
+        mut writer: W,
+        _version_map: &mut VersionMap,
+    ) -> VersionizeResult<()> {
+        // Only support release version.
+        if !self.pre.is_empty() || !self.build.is_empty() {
+            return Err(VersionizeError::UnsuportVersion(self.to_string()));
+        }
+        // To reduce snapshot size, only u16::MAX is supported, which should be enough.
+        if self.major > MAX_VERSION_NUM
+            || self.minor > MAX_VERSION_NUM
+            || self.patch > MAX_VERSION_NUM
+        {
+            return Err(VersionizeError::UnsuportVersion(self.to_string()));
+        }
+        bincode::serialize_into(&mut writer, &(self.major as u16))
+            .map_err(|err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        bincode::serialize_into(&mut writer, &(self.minor as u16))
+            .map_err(|err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        bincode::serialize_into(&mut writer, &(self.patch as u16))
+            .map_err(|err| VersionizeError::Serialize(format!("{:?}", err)))?;
+        Ok(())
+    }
+
+    fn deserialize<R: std::io::Read>(
+        mut reader: R,
+        _version_map: &VersionMap,
+    ) -> VersionizeResult<Self>
+    where
+        Self: Sized,
+    {
+        let major: u16 = bincode::deserialize_from(&mut reader)
+            .map_err(|err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+        let minor: u16 = bincode::deserialize_from(&mut reader)
+            .map_err(|err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+        let patch: u16 = bincode::deserialize_from(&mut reader)
+            .map_err(|err| VersionizeError::Deserialize(format!("{:?}", err)))?;
+        Ok(semver::Version::new(
+            major as u64,
+            minor as u64,
+            patch as u64,
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{TypeId, VersionMap, BASE_VERSION};
-    use std::sync::Arc;
-    use version_map::VersionFilter;
+    use byteorder::{NativeEndian, ReadBytesExt};
 
-    pub struct MyType;
-    pub struct MySecondType;
-    pub struct MyThirdType;
-
-    #[derive(Debug)]
-    struct MyFilter;
-
-    impl VersionFilter for MyFilter {
-        fn is_supported(&self, version: u16) -> bool {
-            version < 5
-        }
-    }
+    use super::*;
+    use crate::{Versionize, VersionizeError};
 
     #[test]
-    fn test_default_version() {
-        let vm = VersionMap::new();
-        assert_eq!(vm.latest_version(), 1);
-    }
-
-    #[test]
-    fn test_new_versions() {
+    fn test_ser_de_semver_err() {
         let mut vm = VersionMap::new();
-        vm.new_version().new_version();
-        assert_eq!(vm.latest_version(), 3);
+        let mut snapshot_mem = vec![0u8; 48];
+        let sem_ver = semver::Version::new(1, 1, MAX_VERSION_NUM + 1);
+        assert_eq!(
+            sem_ver
+                .serialize(snapshot_mem.as_mut_slice(), &mut vm)
+                .unwrap_err(),
+            VersionizeError::UnsuportVersion("1.1.65536".to_string())
+        );
+
+        let sem_ver = semver::Version::parse("1.0.0-alpha").unwrap();
+        assert_eq!(
+            sem_ver
+                .serialize(snapshot_mem.as_mut_slice(), &mut vm)
+                .unwrap_err(),
+            VersionizeError::UnsuportVersion("1.0.0-alpha".to_string())
+        );
+
+        let sem_ver = semver::Version::parse("1.0.0+alpha").unwrap();
+        assert_eq!(
+            sem_ver
+                .serialize(snapshot_mem.as_mut_slice(), &mut vm)
+                .unwrap_err(),
+            VersionizeError::UnsuportVersion("1.0.0+alpha".to_string())
+        );
     }
 
     #[test]
-    fn test_1_app_version() {
+    fn test_ser_de_semver() {
         let mut vm = VersionMap::new();
-        vm.set_type_version(TypeId::of::<MyType>(), 1);
-        vm.set_type_version(TypeId::of::<MySecondType>(), 2);
-        vm.set_type_version(TypeId::of::<MyThirdType>(), 3);
+        let mut snapshot_mem = vec![0u8; 6];
+        let sem_ver = semver::Version::new(3, 0, 14);
+        sem_ver
+            .serialize(&mut snapshot_mem.as_mut_slice(), &mut vm)
+            .unwrap();
 
-        assert_eq!(vm.get_type_version(1, TypeId::of::<MyType>()), 1);
-        assert_eq!(vm.get_type_version(1, TypeId::of::<MySecondType>()), 2);
-        assert_eq!(vm.get_type_version(1, TypeId::of::<MyThirdType>()), 3);
-    }
+        assert_eq!(3, (&snapshot_mem[..2]).read_u16::<NativeEndian>().unwrap());
+        assert_eq!(0, (&snapshot_mem[2..4]).read_u16::<NativeEndian>().unwrap());
+        assert_eq!(
+            14,
+            (&snapshot_mem[4..6]).read_u16::<NativeEndian>().unwrap()
+        );
 
-    #[test]
-    fn test_100_app_version_full() {
-        let mut vm = VersionMap::new();
-
-        for i in 1..=100 {
-            vm.set_type_version(TypeId::of::<MyType>(), i)
-                .set_type_version(TypeId::of::<MySecondType>(), i + 1)
-                .set_type_version(TypeId::of::<MyThirdType>(), i + 2)
-                .new_version();
-        }
-
-        for i in 1..=100 {
-            assert_eq!(vm.get_type_version(i, TypeId::of::<MyType>()), i);
-            assert_eq!(vm.get_type_version(i, TypeId::of::<MySecondType>()), i + 1);
-            assert_eq!(vm.get_type_version(i, TypeId::of::<MyThirdType>()), i + 2);
-        }
-    }
-
-    #[test]
-    fn test_version_map_is_send_and_sync() {
-        fn assert_send_sync<T: Send + Sync>() {}
-
-        assert_send_sync::<VersionMap>();
-    }
-
-    #[test]
-    fn test_app_versions_with_gap() {
-        let my_type_id = TypeId::of::<MyType>();
-        let my_second_type_id = TypeId::of::<MySecondType>();
-        let my_third_type_id = TypeId::of::<MyThirdType>();
-
-        let mut vm = VersionMap::new();
-        vm.set_type_version(my_type_id, 1);
-        vm.set_type_version(my_second_type_id, 1);
-        vm.set_type_version(my_third_type_id, 1);
-        vm.new_version();
-        vm.set_type_version(my_type_id, 2);
-        vm.new_version();
-        vm.set_type_version(my_third_type_id, 2);
-        vm.new_version();
-        vm.set_type_version(my_second_type_id, 2);
-
-        assert_eq!(vm.get_type_version(1, my_type_id), 1);
-        assert_eq!(vm.get_type_version(1, my_second_type_id), 1);
-        assert_eq!(vm.get_type_version(1, my_third_type_id), 1);
-
-        assert_eq!(vm.get_type_version(2, my_type_id), 2);
-        assert_eq!(vm.get_type_version(2, my_second_type_id), 1);
-        assert_eq!(vm.get_type_version(2, my_third_type_id), 1);
-
-        assert_eq!(vm.get_type_version(3, my_type_id), 2);
-        assert_eq!(vm.get_type_version(3, my_second_type_id), 1);
-        assert_eq!(vm.get_type_version(3, my_third_type_id), 2);
-
-        assert_eq!(vm.get_type_version(4, my_type_id), 2);
-        assert_eq!(vm.get_type_version(4, my_second_type_id), 2);
-        assert_eq!(vm.get_type_version(4, my_third_type_id), 2);
-    }
-
-    #[test]
-    fn test_unset_type() {
-        let vm = VersionMap::new();
-        assert_eq!(vm.get_type_version(1, TypeId::of::<MyType>()), BASE_VERSION);
-    }
-
-    #[test]
-    fn test_invalid_root_version() {
-        let mut vm = VersionMap::new();
-        vm.new_version().set_type_version(TypeId::of::<MyType>(), 2);
-
-        assert_eq!(vm.get_type_version(0, TypeId::of::<MyType>()), 2);
-
-        assert_eq!(vm.latest_version(), 2);
-        assert_eq!(vm.get_type_version(129, TypeId::of::<MyType>()), 2);
-        assert_eq!(vm.get_type_version(1, TypeId::of::<MyType>()), BASE_VERSION);
-    }
-
-    #[test]
-    fn test_version_filter() {
-        let mut vm = VersionMap::default();
-        vm.new_version();
-
-        assert!(!vm.is_supported(0));
-        assert!(vm.is_supported(1));
-        assert!(vm.is_supported(2));
-        assert!(!vm.is_supported(3));
-
-        let mut vm = VersionMap::with_filter(Arc::new(MyFilter));
-        vm.new_version();
-        vm.new_version();
-        vm.new_version();
-        vm.new_version();
-        vm.new_version();
-
-        let vm1 = vm.clone();
-        assert!(!vm1.is_supported(0));
-        assert!(vm1.is_supported(1));
-        assert!(vm1.is_supported(2));
-        assert!(vm1.is_supported(3));
-        assert!(vm1.is_supported(4));
-        assert!(!vm1.is_supported(5));
-        assert!(!vm1.is_supported(6));
-        assert_eq!(vm.latest_version(), 6);
+        let de_ver: semver::Version =
+            Versionize::deserialize(snapshot_mem.as_slice(), &vm).unwrap();
+        assert_eq!(de_ver, semver::Version::parse("3.0.14").unwrap());
     }
 }
