@@ -1,6 +1,6 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-#![deny(missing_docs)]
+#![deny(missing_docs, missing_debug_implementations)]
 
 //! Defines a generic interface for version tolerant serialization and
 //! implements it for primitive data types using `bincode` as backend.

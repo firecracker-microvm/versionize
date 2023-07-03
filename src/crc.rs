@@ -5,6 +5,7 @@
 //! read/written.
 
 use crc64::crc64;
+use std::fmt;
 use std::io::{Read, Write};
 
 /// Computes the CRC64 checksum of the read bytes.
@@ -27,6 +28,12 @@ use std::io::{Read, Write};
 pub struct CRC64Reader<T> {
     reader: T,
     crc64: u64,
+}
+
+impl<T> fmt::Debug for CRC64Reader<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CRC64Reader {{ .. }}")
+    }
 }
 
 impl<T> CRC64Reader<T>
@@ -74,6 +81,12 @@ where
 pub struct CRC64Writer<T> {
     writer: T,
     crc64: u64,
+}
+
+impl<T> fmt::Debug for CRC64Writer<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CRC64Writer {{ .. }}")
+    }
 }
 
 impl<T> CRC64Writer<T>
