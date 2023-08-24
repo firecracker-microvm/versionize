@@ -59,6 +59,14 @@ pub enum VersionizeError {
     StringLength(usize),
     /// Vector length exceeded.
     VecLength(usize),
+    /// Unsupported version.
+    UnsuportVersion(String),
+    /// Multiple version
+    MultipleVersion(String, String, String),
+    /// Version parse error.
+    ParseVersion(String, String),
+    /// Not found crate.
+    NotFoundCrate(String),
 }
 
 impl std::fmt::Display for VersionizeError {
@@ -82,6 +90,14 @@ impl std::fmt::Display for VersionizeError {
                 bad_len,
                 primitives::MAX_VEC_SIZE
             ),
+            UnsuportVersion(ver) => write!(f, "{} version is NOT supported.", ver),
+            MultipleVersion(rcrate, a, b) => write!(
+                f,
+                "There are multiple version {}, {} in {} crate.",
+                a, b, rcrate,
+            ),
+            ParseVersion(ver, err) => write!(f, "Parse version {} failed. {}", ver, err),
+            NotFoundCrate(pkg) => write!(f, "Not found crate {}.", pkg),
         }
     }
 }
@@ -136,35 +152,13 @@ pub type VersionizeResult<T> = std::result::Result<T, VersionizeError>;
 pub trait Versionize {
     /// Serializes `self` to `target_verion` using the specficifed `writer` and
     /// `version_map`.
-    fn serialize<W: Write>(
-        &self,
-        writer: &mut W,
-        version_map: &VersionMap,
-        target_version: u16,
-    ) -> VersionizeResult<()>;
+    fn serialize<W: Write>(&self, writer: W, version_map: &mut VersionMap) -> VersionizeResult<()>;
 
     /// Returns a new instance of `Self` by deserializing from `source_version`
     /// using the specficifed `reader` and `version_map`.
-    fn deserialize<R: Read>(
-        reader: &mut R,
-        version_map: &VersionMap,
-        source_version: u16,
-    ) -> VersionizeResult<Self>
+    fn deserialize<R: Read>(reader: R, version_map: &VersionMap) -> VersionizeResult<Self>
     where
         Self: Sized;
-
-    /// Returns the `Self` type id.
-    /// The returned ID represents a globally unique identifier for a type.
-    /// It is required by the `VersionMap` implementation.
-    fn type_id() -> std::any::TypeId
-    where
-        Self: 'static,
-    {
-        TypeId::of::<Self>()
-    }
-
-    /// Returns latest `Self` version number.
-    fn version() -> u16;
 }
 
 #[cfg(test)]
