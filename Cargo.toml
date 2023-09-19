@@ -13,7 +13,7 @@ categories = ["encoding"]
 serde = "1.0.27"
 serde_derive = "1.0.27"
 bincode = "1.2.1"
-versionize_derive = "0.1.4"
+versionize_derive = "0.1.6"
 crc64 = "2.0.0"
 vmm-sys-util = "0.11.0"
 

@@ -485,6 +485,7 @@ fn test_nested_structs_deserialization() {
 }
 
 pub const SIZE: usize = 10;
+pub const SIZE_U8: u8 = 15;
 
 pub mod dummy_mod {
     pub const SIZE: usize = 20;
@@ -497,12 +498,14 @@ fn test_versionize_struct_with_array() {
         a: [u32; SIZE],
         b: [u8; dummy_mod::SIZE],
         c: Option<[i16; SIZE]>,
+        d: [u8; SIZE_U8 as usize],
     }
 
     let test_struct = TestStruct {
         a: [1; SIZE],
         b: [2; dummy_mod::SIZE],
         c: Some([3; SIZE]),
+        d: [4; SIZE_U8 as usize],
     };
 
     let mut mem = vec![0; 4096];
