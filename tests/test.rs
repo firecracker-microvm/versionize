@@ -1,6 +1,7 @@
 // Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(clippy::undocumented_unsafe_blocks)]
 #![allow(clippy::missing_safety_doc)]
 
 extern crate versionize;
@@ -1363,9 +1364,11 @@ fn test_versionize_famstructwrapper() {
         .set_type_version(Message::type_id(), 4);
 
     let mut state = MessageFamStructWrapper::new(0).unwrap();
-    state.as_mut_fam_struct().padding = 8;
-    state.as_mut_fam_struct().extra_value = 16;
-    state.as_mut_fam_struct().status = Wrapping(true);
+    unsafe {
+        state.as_mut_fam_struct().padding = 8;
+        state.as_mut_fam_struct().extra_value = 16;
+        state.as_mut_fam_struct().status = Wrapping(true);
+    }
 
     state.push(1).unwrap();
     state.push(2).unwrap();
@@ -1482,8 +1485,10 @@ pub struct FamStructTest {
 impl FamStructTest {
     fn default_message(_target_version: u16) -> Vec<MessageFamStructWrapper> {
         let mut f = MessageFamStructWrapper::new(0).unwrap();
-        f.as_mut_fam_struct().padding = 1;
-        f.as_mut_fam_struct().extra_value = 2;
+        unsafe {
+            f.as_mut_fam_struct().padding = 1;
+            f.as_mut_fam_struct().extra_value = 2;
+        }
 
         f.push(10).unwrap();
         f.push(20).unwrap();
@@ -1508,8 +1513,10 @@ impl FamStructTest {
         assert!(target_version < 2);
 
         let mut f = MessageFamStructWrapper::new(0).unwrap();
-        f.as_mut_fam_struct().padding = 3;
-        f.as_mut_fam_struct().extra_value = 4;
+        unsafe {
+            f.as_mut_fam_struct().padding = 3;
+            f.as_mut_fam_struct().extra_value = 4;
+        }
 
         f.push(10).unwrap();
         f.push(20).unwrap();
@@ -1532,13 +1539,17 @@ fn test_versionize_struct_with_famstructs() {
     let mut snapshot_mem = vec![0u8; 1024];
 
     let mut f = MessageFamStructWrapper::new(0).unwrap();
-    f.as_mut_fam_struct().padding = 5;
-    f.as_mut_fam_struct().extra_value = 6;
+    unsafe {
+        f.as_mut_fam_struct().padding = 5;
+        f.as_mut_fam_struct().extra_value = 6;
+    }
     f.push(10).unwrap();
 
     let mut f2 = MessageFamStructWrapper::new(0).unwrap();
-    f2.as_mut_fam_struct().padding = 7;
-    f2.as_mut_fam_struct().extra_value = 8;
+    unsafe {
+        f2.as_mut_fam_struct().padding = 7;
+        f2.as_mut_fam_struct().extra_value = 8;
+    }
     f2.push(20).unwrap();
 
     let state = FamStructTest {
@@ -1614,7 +1625,9 @@ impl SomeStruct {
     fn ser_u16(&mut self, target_version: u16) -> VersionizeResult<()> {
         // Fail if semantic serialization is called for the latest version.
         assert!(target_version < 2);
-        self.message.as_mut_fam_struct().padding += 2;
+        unsafe {
+            self.message.as_mut_fam_struct().padding += 2;
+        }
 
         Ok(())
     }
@@ -1631,7 +1644,9 @@ impl SomeStruct2 {
     fn ser_u16(&mut self, target_version: u16) -> VersionizeResult<()> {
         // Fail if semantic serialization is called for the latest version.
         assert!(target_version < 2);
-        self.message.as_mut_fam_struct().padding += 2;
+        unsafe {
+            self.message.as_mut_fam_struct().padding += 2;
+        }
 
         Ok(())
     }
@@ -1648,7 +1663,7 @@ fn test_famstructwrapper_clone() {
     vm.new_version().set_type_version(SomeStruct::type_id(), 2);
 
     let mut f = MessageFamStructWrapper::new(0).unwrap();
-    f.as_mut_fam_struct().padding = 8;
+    unsafe { f.as_mut_fam_struct().padding = 8 };
 
     f.push(1).unwrap();
     f.push(2).unwrap();

@@ -362,8 +362,12 @@ where
         // Header(T) fields will be initialized by Default trait impl.
         let mut object = FamStructWrapper::from_entries(&entries)
             .map_err(|ref err| VersionizeError::Deserialize(format!("{:?}", err)))?;
-        // Update Default T with the deserialized header.
-        *object.as_mut_fam_struct() = header;
+        // SAFETY: We check above that the length in the header matches the number of elements
+        // in the FAM.
+        unsafe {
+            // Update Default T with the deserialized header.
+            *object.as_mut_fam_struct() = header;
+        }
         Ok(object)
     }
 
