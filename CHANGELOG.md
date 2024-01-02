@@ -1,3 +1,7 @@
+# v0.2.0
+
+- Implement `Versionize` for arrays of arbitrary length, instead of just up to 32.
+
 # v0.1.10
 
 - Fixed a possible out of bounds memory access in FamStructWrapper::deserialize
