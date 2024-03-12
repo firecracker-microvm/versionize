@@ -1024,7 +1024,9 @@ fn test_versionize_struct() {
         .set_type_version(State::type_id(), 2)
         .new_version()
         .set_type_version(Test::type_id(), 3)
-        .set_type_version(State::type_id(), 3);
+        .set_type_version(State::type_id(), 3)
+        .new_version()
+        .set_type_version(Test::type_id(), 4);
 
     let mut state = Test {
         usize_1: 0x0102_0304_0506_0708usize,
@@ -1534,7 +1536,9 @@ fn test_versionize_struct_with_famstructs() {
         .set_type_version(Message::type_id(), 2)
         .new_version()
         .set_type_version(FamStructTest::type_id(), 3)
-        .set_type_version(Message::type_id(), 3);
+        .set_type_version(Message::type_id(), 3)
+        .new_version()
+        .set_type_version(Message::type_id(), 4);
 
     let mut snapshot_mem = vec![0u8; 1024];
 
@@ -1660,7 +1664,9 @@ fn test_famstructwrapper_clone() {
     // Clone will result in keeping with their original values, only the number
     // of entries and the entries array when serializing.
     let mut vm = VersionMap::new();
-    vm.new_version().set_type_version(SomeStruct::type_id(), 2);
+    vm.new_version()
+        .set_type_version(SomeStruct::type_id(), 2)
+        .set_type_version(Message::type_id(), 4);
 
     let mut f = MessageFamStructWrapper::new(0).unwrap();
     unsafe { f.as_mut_fam_struct().padding = 8 };
@@ -1714,4 +1720,124 @@ fn test_famstructwrapper_clone() {
     );
     // `padding` field will have its value preserved (8). `ser_u16` won't be called at v2.
     assert_eq!(8, restored_state.message.as_fam_struct_ref().padding);
+}
+
+#[test]
+fn test_latest_version_not_in_version_map() {
+    #[derive(Versionize)]
+    struct TestStruct {
+        val: u16,
+        #[version(start = 2)]
+        flag: bool,
+    }
+
+    #[repr(C)]
+    #[derive(Versionize)]
+    union TestUnion {
+        val: u16,
+        #[version(start = 2)]
+        flag: bool,
+    }
+
+    impl Default for TestUnion {
+        fn default() -> TestUnion {
+            TestUnion { val: 0 }
+        }
+    }
+
+    #[derive(Versionize)]
+    enum TestEnum {
+        First,
+        #[version(start = 2, default_fn = "default_second")]
+        Second(bool),
+    }
+
+    impl TestEnum {
+        fn default_second(&self, _target_version: u16) -> VersionizeResult<TestEnum> {
+            Ok(TestEnum::First)
+        }
+    }
+
+    let test_struct = TestStruct { val: 0, flag: true };
+    let test_union = TestUnion { flag: true };
+    let test_enum = TestEnum::First;
+
+    let mut vm = VersionMap::new();
+    vm.new_version()
+        .set_type_version(TestStruct::type_id(), 2)
+        .set_type_version(TestUnion::type_id(), 2)
+        .set_type_version(TestEnum::type_id(), 2);
+    // 'Forgot' to update this one with the latest version for A and B.
+    let outdated_vm = VersionMap::new();
+
+    let mut buffer = vec![0u8; 128];
+
+    // Serializing a struct/union/enum at the latest version from VersionMap fails if
+    // the current version of the struct/union is not captured in the VersionMap.
+    {
+        assert_eq!(
+            test_struct
+                .serialize(
+                    &mut buffer.as_mut_slice(),
+                    &outdated_vm,
+                    outdated_vm.latest_version()
+                )
+                .unwrap_err(),
+            VersionizeError::VersionMapNotUpdated
+        );
+
+        assert_eq!(
+            test_union
+                .serialize(
+                    &mut buffer.as_mut_slice(),
+                    &outdated_vm,
+                    outdated_vm.latest_version()
+                )
+                .unwrap_err(),
+            VersionizeError::VersionMapNotUpdated
+        );
+
+        assert_eq!(
+            test_enum
+                .serialize(
+                    &mut buffer.as_mut_slice(),
+                    &outdated_vm,
+                    outdated_vm.latest_version()
+                )
+                .unwrap_err(),
+            VersionizeError::VersionMapNotUpdated
+        );
+    }
+
+    // Happy path: latest version from VersionMap contains the current versions of the struct/union.
+    {
+        assert!(test_struct
+            .serialize(&mut buffer.as_mut_slice(), &vm, vm.latest_version())
+            .is_ok());
+
+        assert!(test_union
+            .serialize(&mut buffer.as_mut_slice(), &vm, vm.latest_version())
+            .is_ok());
+
+        assert!(test_enum
+            .serialize(&mut buffer.as_mut_slice(), &vm, vm.latest_version())
+            .is_ok());
+    }
+
+    // Deserializing at the latest version from VersionMap fails if the struct/union has
+    // a different current version than expected.
+    // We don't support versioned deserialization for enums yet.
+    {
+        test_struct
+            .serialize(&mut buffer.as_mut_slice(), &vm, 1)
+            .unwrap();
+        assert!(TestStruct::deserialize(&mut buffer.as_slice(), &outdated_vm, 1).is_err());
+        assert!(TestStruct::deserialize(&mut buffer.as_slice(), &vm, 1).is_ok());
+
+        test_union
+            .serialize(&mut buffer.as_mut_slice(), &vm, 1)
+            .unwrap();
+        assert!(TestUnion::deserialize(&mut buffer.as_slice(), &outdated_vm, 1).is_err());
+        assert!(TestUnion::deserialize(&mut buffer.as_slice(), &vm, 1).is_ok());
+    }
 }

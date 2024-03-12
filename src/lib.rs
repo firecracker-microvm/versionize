@@ -59,6 +59,8 @@ pub enum VersionizeError {
     StringLength(usize),
     /// Vector length exceeded.
     VecLength(usize),
+    /// VersionMap not updated.
+    VersionMapNotUpdated,
 }
 
 impl std::fmt::Display for VersionizeError {
@@ -82,6 +84,7 @@ impl std::fmt::Display for VersionizeError {
                 bad_len,
                 primitives::MAX_VEC_SIZE
             ),
+            VersionMapNotUpdated => write!(f, "VersionMap not updated with latest versions"),
         }
     }
 }
